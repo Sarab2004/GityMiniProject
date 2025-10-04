@@ -31,7 +31,6 @@ export default function FR0101Page() {
         firstReportDate: '',
         firstReportDescription: '',
         firstReportResponsibleSignature: '',
-        firstReportDate: '',
         firstReportApproverSignature: '',
         secondReportStatus: '',
         secondReportDate: '',
