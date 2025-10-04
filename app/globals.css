@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+    font-family: 'Peyda';
+    src: url('/fonts/peyda/Peyda-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Peyda';
+    src: url('/fonts/peyda/Peyda-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+html {
+    font-family: Peyda, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    direction: rtl;
+}
+
+body {
+    @apply bg-bg text-text;
+}
+
+/* Custom focus styles */
+.focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2;
+}
+
+/* Form control base styles */
+.form-control {
+    @apply h-control rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder-muted shadow-sm transition-colors focus-ring;
+}
+
+.form-control:focus {
+    @apply border-primary;
+}
+
+/* Button base styles */
+.btn-primary {
+    @apply bg-primary text-white hover:bg-primaryHover focus-ring rounded-xl px-6 py-3 font-medium shadow-sm transition-colors;
+}
+
+.btn-secondary {
+    @apply border border-primary text-primary hover:bg-primarySubtle focus-ring rounded-xl px-6 py-3 font-medium transition-colors;
+}
+
+.btn-danger {
+    @apply bg-danger text-white hover:bg-red-700 focus-ring rounded-xl px-6 py-3 font-medium shadow-sm transition-colors;
+}
+
+/* Card styles */
+.card {
+    @apply bg-surface rounded-xl border border-border shadow-sm;
+}
+
+/* Form section styles */
+.form-section {
+    @apply space-y-4 rounded-xl border border-divider bg-surface p-6;
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    body {
+        @apply text-black bg-white;
+    }
+
+    .form-section {
+        @apply border-gray-300 shadow-none;
+    }
+}
