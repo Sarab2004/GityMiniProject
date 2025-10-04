@@ -3,19 +3,35 @@
 @tailwind utilities;
 
 @font-face {
-    font-family: 'Peyda';
-    src: url('/fonts/peyda/Peyda-Regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+  font-family: 'Peyda';
+  src: url('/fonts/peyda/PEYDA-REGULAR.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Peyda';
-    src: url('/fonts/peyda/Peyda-Bold.woff2') format('woff2');
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
+  font-family: 'Peyda';
+  src: url('/fonts/peyda/PEYDA-MEDIUM.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Peyda';
+  src: url('/fonts/peyda/PEYDA-SEMIBOLD.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Peyda';
+  src: url('/fonts/peyda/PEYDA-BOLD.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 html {
