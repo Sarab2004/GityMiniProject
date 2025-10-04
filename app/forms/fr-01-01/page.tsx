@@ -36,14 +36,12 @@ export default function FR0101Page() {
         secondReportDate: '',
         secondReportDescription: '',
         secondReportResponsibleSignature: '',
-        secondReportDate: '',
         secondReportApproverSignature: '',
         effectivenessDate: '',
         effectivenessMethod: '',
         effectivenessStatus: '',
         newActionNumber: '',
         effectivenessReviewer: '',
-        effectivenessDate: '',
         effectivenessSignature: ''
     })
 
