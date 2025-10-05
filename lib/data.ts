@@ -1,4 +1,4 @@
-import { apiFetch, getCsrfToken } from '@/lib/auth'
+﻿import { apiFetch, getCsrfToken } from '@/lib/auth'
 
 export type CompletedRisk = {
     id: number
@@ -21,19 +21,27 @@ export type CompletedAction = {
 }
 
 export async function fetchCompletedRisks(): Promise<CompletedRisk[]> {
-    const { data } = await apiFetch<CompletedRisk[]>('/api/v1/completed/risks', {
-        method: 'GET',
-        cache: 'no-store',
-    })
-    return data ?? []
+    try {
+        const { data } = await apiFetch<CompletedRisk[]>('/api/v1/completed/risks/', {
+            method: 'GET',
+            cache: 'no-store',
+        })
+        return data ?? []
+    } catch (error) {
+        throw new Error('NETWORK_ERROR')
+    }
 }
 
 export async function fetchCompletedActions(): Promise<CompletedAction[]> {
-    const { data } = await apiFetch<CompletedAction[]>('/api/v1/completed/actions', {
-        method: 'GET',
-        cache: 'no-store',
-    })
-    return data ?? []
+    try {
+        const { data } = await apiFetch<CompletedAction[]>('/api/v1/completed/actions/', {
+            method: 'GET',
+            cache: 'no-store',
+        })
+        return data ?? []
+    } catch (error) {
+        throw new Error('NETWORK_ERROR')
+    }
 }
 
 export async function softDeleteRisk(id: number): Promise<void> {

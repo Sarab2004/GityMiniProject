@@ -4,7 +4,18 @@
     full_name: string
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:8000'
+const resolveApiBase = (): string => {
+    const envBase = process.env.NEXT_PUBLIC_API_BASE_URL
+    if (envBase && envBase.trim().length > 0) {
+        return envBase.replace(/\/$/, '')
+    }
+    if (typeof window !== 'undefined' && window.location?.origin) {
+        return window.location.origin
+    }
+    return 'http://localhost:8000'
+}
+
+const API_BASE = resolveApiBase()
 
 export const apiBaseUrl = API_BASE
 
@@ -29,57 +40,82 @@ async function parseJsonSafe<T>(response: Response): Promise<T | null> {
 }
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<{ data?: T; response: Response }> {
-    const response = await fetch(`${API_BASE}${path}`, {
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(options?.headers ?? {}),
-        },
-        ...options,
-    })
-    if (response.ok) {
-        const data = await parseJsonSafe<T>(response)
-        return { data: data ?? ({} as T), response }
+    try {
+        const headers: Record<string, string> = {
+            ...(options?.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options?.headers ?? {}),
+        }
+
+        if (options?.body && !headers['Content-Type']) {
+            headers['Content-Type'] = 'application/json'
+        }
+
+        const fetchOptions: RequestInit = {
+            ...options,
+            credentials: options?.credentials ?? 'include',
+            headers,
+        }
+
+        const response = await fetch(`${API_BASE}${path}`, fetchOptions)
+        if (response.ok) {
+            const data = await parseJsonSafe<T>(response)
+            return { data: data ?? ({} as T), response }
+        }
+        const errorPayload = (await parseJsonSafe<T>(response)) ?? ({ detail: 'خطای ناشناخته' } as T)
+        return { data: errorPayload, response }
+    } catch (error) {
+        console.error('apiFetch network error', error)
+        throw new Error('NETWORK_ERROR')
     }
-    const errorPayload = (await parseJsonSafe<T>(response)) ?? ({ detail: 'خطای ناشناخته' } as T)
-    return { data: errorPayload, response }
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
-    const { data, response } = await apiFetch<{ user: AuthUser }>('/api/v1/auth/me', {
-        method: 'GET',
-        cache: 'no-store',
-    })
-    if (!response.ok) {
+    try {
+        const { data, response } = await apiFetch<{ user: AuthUser }>('/api/v1/auth/me/', {
+            method: 'GET',
+            cache: 'no-store',
+        })
+        if (!response.ok) {
+            return null
+        }
+        return data?.user ?? null
+    } catch (error) {
         return null
     }
-    return data?.user ?? null
 }
 
 export async function login(username: string, password: string): Promise<{ user?: AuthUser; error?: string }> {
     const csrf = getCookie('csrftoken') ?? ''
-    const { data, response } = await apiFetch<{ user: AuthUser; detail?: string }>('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-        headers: {
-            'X-CSRFToken': csrf,
-        },
-    })
-    if (!response.ok) {
-        const message = (data as { detail?: string })?.detail ?? 'ورود ناموفق بود.'
-        return { error: message }
+    try {
+        const { data, response } = await apiFetch<{ user: AuthUser; detail?: string }>('/api/v1/auth/login/', {
+            method: 'POST',
+            body: JSON.stringify({ username, password }),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf,
+            },
+        })
+        if (!response.ok) {
+            const message = (data as { detail?: string })?.detail ?? 'ورود ناموفق بود.'
+            return { error: message }
+        }
+        return { user: data?.user }
+    } catch (error) {
+        return { error: 'اتصال به سرور برقرار نشد. لطفاً بعداً دوباره تلاش کنید.' }
     }
-    return { user: data?.user }
 }
 
 export async function logout(): Promise<void> {
     const csrf = getCookie('csrftoken') ?? ''
-    await apiFetch('/api/v1/auth/logout', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': csrf,
-        },
-    })
+    try {
+        await apiFetch('/api/v1/auth/logout/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrf,
+            },
+        })
+    } catch (error) {
+        console.warn('Logout failed due to network error', error)
+    }
 }
 
 export function getCsrfToken(): string {

@@ -1,7 +1,7 @@
 ﻿from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework import permissions, status
+from rest_framework import parsers, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -16,6 +16,7 @@ class CsrfEnsureMixin:
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    parser_classes = [parsers.JSONParser, parsers.FormParser, parsers.MultiPartParser]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
