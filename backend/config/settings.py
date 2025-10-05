@@ -1,4 +1,4 @@
-﻿"""
+"""
 Django settings for config project.
 """
 
@@ -19,45 +19,81 @@ if env_file.exists():
 SECRET_KEY = env("SECRET_KEY", default="django-insecure-change-me")
 DEBUG = env.bool("DEBUG", default=False)
 
-# Helper function for CSV env vars
-def _csv(name, default=""):
+
+# Helper functions for environment-driven configuration
+
+def _csv(name: str, default: str = ""):
     return [x.strip() for x in env(name, default=default).split(",") if x.strip()]
+
+
+def _unique(sequence):
+    seen = set()
+    ordered = []
+    for item in sequence:
+        if item and item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered
+
 
 ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "") or ["*"]
 CSRF_TRUSTED_ORIGINS = _csv("CSRF_TRUSTED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = _csv("CORS_ALLOWED_ORIGINS", "")
 
-# CORS settings for cross-site
-CORS_ALLOW_ALL_ORIGINS = not CORS_ALLOWED_ORIGINS  # Only allow all if specific origins not set
+DEFAULT_CLIENT_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = _unique(CORS_ALLOWED_ORIGINS + DEFAULT_CLIENT_ORIGINS)
+    CSRF_TRUSTED_ORIGINS = _unique(CSRF_TRUSTED_ORIGINS + DEFAULT_CLIENT_ORIGINS)
+else:
+    CORS_ALLOWED_ORIGINS = _unique(CORS_ALLOWED_ORIGINS)
+    CSRF_TRUSTED_ORIGINS = _unique(CSRF_TRUSTED_ORIGINS)
+
+backend_trusted_origins = []
+for host in ALLOWED_HOSTS:
+    if host == "*":
+        continue
+    if host.startswith("http://") or host.startswith("https://"):
+        backend_trusted_origins.append(host)
+    else:
+        backend_trusted_origins.append(f"https://{host}")
+        if DEBUG:
+            backend_trusted_origins.append(f"http://{host}")
+
+CSRF_TRUSTED_ORIGINS = _unique(CSRF_TRUSTED_ORIGINS + backend_trusted_origins)
+
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 CORS_PREFLIGHT_MAX_AGE = 86400
 
-# Session and CSRF cookies for cross-site
 SESSION_COOKIE_SECURE = not DEBUG
-SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+SESSION_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
-CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read it
+CSRF_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
+CSRF_COOKIE_HTTPONLY = False
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -77,7 +113,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "config.cors_middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -155,30 +190,6 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
-
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = False
 
 LOCALE_PATHS = [BASE_DIR / "locale"]
 
