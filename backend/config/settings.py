@@ -23,7 +23,7 @@ DEBUG = env.bool("DEBUG", default=False)
 def _csv(name, default=""):
     return [x.strip() for x in env(name, default=default).split(",") if x.strip()]
 
-ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "*")
+ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "") or ["*"]
 CSRF_TRUSTED_ORIGINS = _csv("CSRF_TRUSTED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = _csv("CORS_ALLOWED_ORIGINS", "")
 
