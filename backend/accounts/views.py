@@ -51,6 +51,6 @@ class MeView(CsrfEnsureMixin, APIView):
         if request.user.is_authenticated:
             return Response({"user": AuthUserSerializer(request.user).data})
         return Response(
-            {"detail": "ابتدا وارد حساب کاربری شوید."},
-            status=status.HTTP_401_UNAUTHORIZED,
+            {"user": None, "authenticated": False},
+            status=status.HTTP_200_OK,
         )
