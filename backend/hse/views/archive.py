@@ -24,13 +24,22 @@ class ArchiveFormFilter(django_filters.FilterSet):
         return queryset
 
 
-class ArchiveViewSet(viewsets.ReadOnlyModelViewSet):
+class ArchiveViewSet(viewsets.ModelViewSet):
     """
     ViewSet for archive functionality that aggregates all form types
     """
     serializer_class = ArchiveFormSerializer
     filterset_class = ArchiveFormFilter
     permission_classes = [permissions.AllowAny]  # Allow access for now, can be changed to IsAuthenticated later
+    
+    def create(self, request, *args, **kwargs):
+        return Response({'error': 'Create not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+    def update(self, request, *args, **kwargs):
+        return Response({'error': 'Update not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+    def partial_update(self, request, *args, **kwargs):
+        return Response({'error': 'Partial update not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def get_queryset(self):
         # Get all forms from different models
@@ -211,8 +220,7 @@ class ArchiveViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(form)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['delete'])
-    def soft_delete(self, request, pk=None):
+    def destroy(self, request, pk=None):
         """Soft delete a form by setting is_deleted=True"""
         composite_id = pk
         if '_' not in composite_id:
