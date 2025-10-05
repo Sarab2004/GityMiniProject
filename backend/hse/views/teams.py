@@ -1,4 +1,4 @@
-from rest_framework import status
+from rest_framework import status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -11,6 +11,7 @@ class SafetyTeamViewSet(AuditModelViewSet):
     queryset = SafetyTeam.objects.select_related("project").prefetch_related("members")
     serializer_class = SafetyTeamSerializer
     filterset_fields = ["project"]
+    permission_classes = [permissions.AllowAny]
 
     @action(detail=True, methods=["post"])
     def members(self, request, pk=None):

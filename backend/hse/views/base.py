@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, permissions
 
 
 class CreatedByMixin:
@@ -7,4 +7,4 @@ class CreatedByMixin:
 
 
 class AuditModelViewSet(CreatedByMixin, viewsets.ModelViewSet):
-    pass
+    permission_classes = [permissions.AllowAny]

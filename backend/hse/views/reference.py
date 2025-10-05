@@ -1,4 +1,4 @@
-from rest_framework import filters
+from rest_framework import filters, permissions
 
 from ..models import Contractor, OrgUnit, Person, Project, Section
 from ..serializers.reference import (
@@ -16,6 +16,7 @@ class ProjectViewSet(AuditModelViewSet):
     serializer_class = ProjectSerializer
     filterset_fields = ["is_active"]
     search_fields = ["name", "code"]
+    permission_classes = [permissions.AllowAny]
 
 
 class ContractorViewSet(AuditModelViewSet):
@@ -23,12 +24,14 @@ class ContractorViewSet(AuditModelViewSet):
     serializer_class = ContractorSerializer
     filterset_fields = ["name"]
     search_fields = ["name"]
+    permission_classes = [permissions.AllowAny]
 
 
 class OrgUnitViewSet(AuditModelViewSet):
     queryset = OrgUnit.objects.all()
     serializer_class = OrgUnitSerializer
     search_fields = ["name"]
+    permission_classes = [permissions.AllowAny]
 
 
 class SectionViewSet(AuditModelViewSet):
@@ -36,6 +39,7 @@ class SectionViewSet(AuditModelViewSet):
     serializer_class = SectionSerializer
     filterset_fields = ["org_unit"]
     search_fields = ["name"]
+    permission_classes = [permissions.AllowAny]
 
 
 class PersonViewSet(AuditModelViewSet):
@@ -43,3 +47,4 @@ class PersonViewSet(AuditModelViewSet):
     serializer_class = PersonSerializer
     filterset_fields = ["contractor"]
     search_fields = ["full_name", "role"]
+    permission_classes = [permissions.AllowAny]

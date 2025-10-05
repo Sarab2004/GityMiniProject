@@ -1,5 +1,5 @@
 import django_filters
-from rest_framework import status
+from rest_framework import status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -27,6 +27,7 @@ class ActionTrackingViewSet(AuditModelViewSet):
     queryset = ActionTracking.objects.select_related("action")
     serializer_class = ActionTrackingSerializer
     filterset_class = ActionTrackingFilter
+    permission_classes = [permissions.AllowAny]
 
     def perform_create(self, serializer):  # type: ignore[override]
         serializer.save(created_by=self.request.user)
@@ -45,6 +46,7 @@ class ChangeLogViewSet(AuditModelViewSet):
     queryset = ChangeLog.objects.select_related("action")
     serializer_class = ChangeLogSerializer
     filterset_class = ChangeLogFilter
+    permission_classes = [permissions.AllowAny]
 
     def perform_create(self, serializer):  # type: ignore[override]
         serializer.save(created_by=self.request.user)
@@ -63,6 +65,7 @@ class ToolboxMeetingViewSet(AuditModelViewSet):
     queryset = ToolboxMeeting.objects.select_related("project").prefetch_related("attendees")
     serializer_class = ToolboxMeetingSerializer
     filterset_class = ToolboxMeetingFilter
+    permission_classes = [permissions.AllowAny]
 
     @action(detail=True, methods=["post"], url_path="attendees")
     def add_attendee(self, request, pk=None):
