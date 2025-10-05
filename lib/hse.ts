@@ -355,3 +355,62 @@ export async function createChangeLog(payload: CreateChangeLogPayload) {
     }
     return data
 }
+
+// TBM (Toolbox Meeting) API functions
+export interface CreateTBMPayload {
+    tbm_no: string
+    project: number
+    date: string
+    topic_text: string
+    trainer_text: string
+    location_text?: string
+    notes_text?: string
+}
+
+export interface TBMAttendeePayload {
+    full_name: string
+    role_text: string
+    signature_text?: string
+}
+
+export interface TBMResponse {
+    id: number
+    tbm_no: string
+    project: number
+    date: string
+    topic_text: string
+    trainer_text: string
+    location_text?: string
+    notes_text?: string
+    attendees: TBMAttendeePayload[]
+}
+
+export async function createToolboxMeeting(payload: CreateTBMPayload): Promise<TBMResponse> {
+    const { data, response } = await apiFetch<TBMResponse>('/api/v1/tbm/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok) {
+        throw new Error((data as any)?.detail ?? 'ثبت جلسه TBM ناموفق بود')
+    }
+    return data
+}
+
+export async function addTBMAttendee(tbmId: number, attendee: TBMAttendeePayload): Promise<TBMAttendeePayload> {
+    const { data, response } = await apiFetch<TBMAttendeePayload>(`/api/v1/tbm/${tbmId}/attendees/`, {
+        method: 'POST',
+        body: JSON.stringify(attendee),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok) {
+        throw new Error((data as any)?.detail ?? 'ثبت حاضر ناموفق بود')
+    }
+    return data
+}
