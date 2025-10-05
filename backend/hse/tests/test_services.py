@@ -1,0 +1,104 @@
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.utils import timezone
+
+from ..models import AcceptanceStatus, LegalStatus, Project, RiskRecord, Section, OrgUnit, Contractor, ActionForm
+from ..services.indicator import next_indicator
+from ..services.risk import calculate_metrics
+from ..serializers.actions import ActionEffectivenessSerializer
+from ..serializers.risks import RiskRecordSerializer
+
+
+class IndicatorServiceTests(TestCase):
+    def test_sequence_increments(self):
+        first = next_indicator("NP", "25")
+        second = next_indicator("NP", "25")
+        self.assertTrue(first.endswith("001"))
+        self.assertTrue(second.endswith("002"))
+        self.assertNotEqual(first, second)
+
+
+class RiskServiceTests(TestCase):
+    def setUp(self):
+        self.project = Project.objects.create(code="NP", name="Central", created_by=None)
+        self.unit = OrgUnit.objects.create(name="Unit A", created_by=None)
+
+    def test_calculate_metrics_acceptance_rules(self):
+        metrics = calculate_metrics(2, 3, 2, 8, 5, LegalStatus.COMPLIANT)
+        self.assertEqual(metrics["E"], 12)
+        self.assertEqual(metrics["P"], 4)
+        self.assertEqual(metrics["RPN"], 160)
+        self.assertEqual(metrics["acceptance"], AcceptanceStatus.HIGH_UNACCEPTABLE)
+
+    def test_serializer_requires_action_when_unacceptable(self):
+        data = {
+            "project": self.project.pk,
+            "unit": self.unit.pk,
+            "section": None,
+            "process_title": "Test",
+            "activity_desc": "Desc",
+            "routine_flag": "R",
+            "hazard_desc": "Hazard",
+            "event_desc": "Event",
+            "consequence_desc": "Consequence",
+            "root_cause_desc": "Cause",
+            "existing_controls_desc": "Controls",
+            "inputs": [],
+            "legal_requirement_text": "",
+            "legal_status": LegalStatus.COMPLIANT,
+            "risk_type": "SAFETY",
+            "A": 2,
+            "B": 3,
+            "C": 2,
+            "S": 8,
+            "D": 5,
+        }
+        serializer = RiskRecordSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("action_number_text", serializer.errors)
+
+
+class ActionEffectivenessTests(TestCase):
+    def setUp(self):
+        self.project = Project.objects.create(code="NP", name="Central", created_by=None)
+        self.action = ActionForm.objects.create(
+            indicator="NP-25-001",
+            project=self.project,
+            requester_name="Tester",
+            requester_unit_text="Unit",
+            request_date=timezone.now().date(),
+            request_type="CORRECTIVE",
+            sources=[],
+            nonconformity_or_change_desc="Issue",
+            root_cause_or_goal_desc="Cause",
+            needs_risk_update=False,
+            creates_knowledge=False,
+            created_by=None,
+        )
+
+    def test_effectiveness_requires_followup(self):
+        serializer = ActionEffectivenessSerializer(
+            data={
+                "checked_at": timezone.now().date(),
+                "method_text": "Check",
+                "effective": False,
+            },
+            context={"action": self.action},
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("new_action_indicator", serializer.errors)
+
+    def test_effectiveness_updates_action(self):
+        serializer = ActionEffectivenessSerializer(
+            data={
+                "checked_at": timezone.now().date(),
+                "method_text": "Check",
+                "effective": True,
+                "new_action_indicator": "",
+            },
+            context={"action": self.action},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.action.refresh_from_db()
+        self.assertTrue(self.action.effective)
