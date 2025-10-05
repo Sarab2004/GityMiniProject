@@ -127,6 +127,14 @@ export default function FR0112Page() {
             setError('پروژه را انتخاب کنید.')
             return
         }
+        if (!formData.preparer) {
+            setError('نام تهیه‌کننده را وارد کنید.')
+            return
+        }
+        if (!formData.approver) {
+            setError('نام تاییدکننده را وارد کنید.')
+            return
+        }
         if ((formData.teamMembers ?? []).length === 0) {
             setError('حداقل یک عضو تیم را ثبت کنید.')
             return
@@ -219,12 +227,14 @@ export default function FR0112Page() {
                     <TextInput
                         label="تهیه‌کننده (کارشناس HSE)"
                         placeholder="نام و امضای کارشناس HSE"
+                        required
                         value={formData.preparer}
                         onChange={(value) => updateField('preparer', value)}
                     />
                     <TextInput
                         label="تصویب‌کننده (مدیر پروژه/سرپرست کارگاه)"
                         placeholder="نام و امضای مدیر پروژه"
+                        required
                         value={formData.approver}
                         onChange={(value) => updateField('approver', value)}
                     />

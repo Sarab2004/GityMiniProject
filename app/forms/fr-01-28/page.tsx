@@ -174,6 +174,14 @@ export default function FR0128Page() {
             setError('عنوان فرآیند و شرح فعالیت را تکمیل کنید.')
             return
         }
+        if (!formData.hazardDesc || !formData.eventDesc || !formData.consequenceDesc) {
+            setError('شرح خطر، رویداد و پیامد الزامی است.')
+            return
+        }
+        if (!formData.rootCauseDesc || !formData.controlsDesc) {
+            setError('علت ریشه‌ای و کنترل‌های موجود الزامی است.')
+            return
+        }
         if (!ensureNumbers(formData.A, formData.B, formData.C, formData.S, formData.D)) {
             setError('مقادیر A، B، C، S و D باید عددی باشند.')
             return
