@@ -7,6 +7,10 @@ interface FormLayoutProps {
     code?: string
     children: React.ReactNode
     onReset?: () => void
+    onSubmit?: () => void
+    loading?: boolean
+    error?: string | null
+    success?: string | null
     footer?: React.ReactNode
 }
 
@@ -15,6 +19,10 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
     code,
     children,
     onReset,
+    onSubmit,
+    loading = false,
+    error,
+    success,
     footer,
 }) => {
     const handlePrint = () => {
@@ -71,6 +79,38 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
                 <div className="max-w-4xl mx-auto space-y-6">
                     {children}
                 </div>
+                
+                {/* Error and Success Messages */}
+                {(error || success) && (
+                    <div className="max-w-4xl mx-auto mt-6 no-print">
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+                                {error}
+                            </div>
+                        )}
+                        {success && (
+                            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+                                {success}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Submit Button */}
+                {onSubmit && (
+                    <div className="max-w-4xl mx-auto mt-8 no-print">
+                        <div className="flex justify-center">
+                            <button
+                                onClick={onSubmit}
+                                disabled={loading}
+                                className="btn-primary px-8 py-3 text-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? 'در حال ثبت...' : 'ثبت اطلاعات'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {footer && <div className="max-w-4xl mx-auto mt-8 no-print">{footer}</div>}
             </main>
         </div>
