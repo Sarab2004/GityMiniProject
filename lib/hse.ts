@@ -394,7 +394,7 @@ export async function createToolboxMeeting(payload: CreateTBMPayload): Promise<T
             'X-CSRFToken': getCsrfToken(),
         },
     })
-    if (!response.ok) {
+    if (!response.ok || !data) {
         throw new Error((data as any)?.detail ?? 'ثبت جلسه TBM ناموفق بود')
     }
     return data
@@ -409,8 +409,74 @@ export async function addTBMAttendee(tbmId: number, attendee: TBMAttendeePayload
             'X-CSRFToken': getCsrfToken(),
         },
     })
-    if (!response.ok) {
+    if (!response.ok || !data) {
         throw new Error((data as any)?.detail ?? 'ثبت حاضر ناموفق بود')
     }
     return data
+}
+
+// Archive API functions
+export interface ArchiveForm {
+    id: number
+    form_type: string
+    form_number: string
+    project: string
+    created_at: string
+    status: string
+    data: any
+}
+
+export interface ArchiveFilters {
+    project?: string
+    form_type?: string
+}
+
+export async function fetchArchiveForms(filters?: ArchiveFilters): Promise<ArchiveForm[]> {
+    try {
+        const params = new URLSearchParams()
+        if (filters?.project) params.append('project', filters.project)
+        if (filters?.form_type) params.append('form_type', filters.form_type)
+        
+        const queryString = params.toString()
+        const url = queryString ? `/api/v1/archive/?${queryString}` : '/api/v1/archive/'
+        
+        const { data } = await apiFetch<ArchiveForm[]>(url, {
+            method: 'GET',
+            cache: 'no-store',
+        })
+        return data ?? []
+    } catch (error) {
+        throw new Error('NETWORK_ERROR')
+    }
+}
+
+export async function fetchArchiveForm(id: number): Promise<ArchiveForm> {
+    try {
+        const { data } = await apiFetch<ArchiveForm>(`/api/v1/archive/${id}/`, {
+            method: 'GET',
+            cache: 'no-store',
+        })
+        if (!data) {
+            throw new Error('فرم یافت نشد')
+        }
+        return data
+    } catch (error) {
+        throw new Error('NETWORK_ERROR')
+    }
+}
+
+export async function deleteArchiveForm(id: number): Promise<void> {
+    try {
+        const { response } = await apiFetch(`/api/v1/archive/${id}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+            },
+        })
+        if (!response.ok) {
+            throw new Error('حذف فرم ناموفق بود')
+        }
+    } catch (error) {
+        throw new Error('NETWORK_ERROR')
+    }
 }
