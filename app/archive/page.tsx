@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowRightIcon, EyeIcon, TrashIcon } from '@heroicons/react/24/outline'
-import { fetchArchiveForms, deleteArchiveForm, type ArchiveForm, type ArchiveFilters } from '@/lib/hse'
+import { ArrowRightIcon, EyeIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { fetchArchiveForms, deleteArchiveForm, fetchArchiveForm, type ArchiveForm, type ArchiveFilters } from '@/lib/hse'
 
 const formTypeLabels: Record<string, string> = {
     'action': 'اقدام اصلاحی',
@@ -25,6 +25,8 @@ export default function ArchivePage() {
     const [error, setError] = useState<string | null>(null)
     const [filters, setFilters] = useState<ArchiveFilters>({})
     const [deletingId, setDeletingId] = useState<number | null>(null)
+    const [selectedForm, setSelectedForm] = useState<ArchiveForm | null>(null)
+    const [showModal, setShowModal] = useState(false)
 
     useEffect(() => {
         loadForms()
@@ -60,6 +62,17 @@ export default function ArchivePage() {
             console.error('Delete form error:', err)
         } finally {
             setDeletingId(null)
+        }
+    }
+
+    const handleViewForm = async (id: string) => {
+        try {
+            const form = await fetchArchiveForm(id)
+            setSelectedForm(form)
+            setShowModal(true)
+        } catch (err: any) {
+            setError('خطا در بارگذاری فرم')
+            console.error('View form error:', err)
         }
     }
 
@@ -190,13 +203,13 @@ export default function ArchivePage() {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div className="flex items-center space-x-2 space-x-reverse">
-                                                    <Link
-                                                        href={`/archive/forms/${form.form_type}/${form.id}`}
+                                                    <button
+                                                        onClick={() => handleViewForm(form.id)}
                                                         className="text-blue-600 hover:text-blue-900 flex items-center space-x-1 space-x-reverse"
                                                     >
                                                         <EyeIcon className="h-4 w-4" />
                                                         <span>مشاهده</span>
-                                                    </Link>
+                                                    </button>
                                                     <button
                                                         onClick={() => handleDelete(form.id)}
                                                         disabled={deletingId === Number(form.id.split('_')[1])}
@@ -214,6 +227,61 @@ export default function ArchivePage() {
                         </div>
                     )}
                 </div>
+
+                {/* Modal for viewing form details */}
+                {showModal && selectedForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="flex items-center justify-between p-6 border-b">
+                                <h2 className="text-xl font-semibold text-text">
+                                    جزئیات فرم: {selectedForm.form_number}
+                                </h2>
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    <XMarkIcon className="h-6 w-6" />
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">نوع فرم</label>
+                                        <p className="mt-1 text-sm text-gray-900">{formTypeLabels[selectedForm.form_type] || selectedForm.form_type}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">پروژه</label>
+                                        <p className="mt-1 text-sm text-gray-900">{projectLabels[selectedForm.project] || selectedForm.project}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">تاریخ ثبت</label>
+                                        <p className="mt-1 text-sm text-gray-900">{formatDate(selectedForm.created_at)}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">وضعیت</label>
+                                        <p className="mt-1 text-sm text-gray-900">{selectedForm.status}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">محتوای فرم</label>
+                                    <div className="bg-gray-50 p-4 rounded-md">
+                                        <pre className="text-sm text-gray-800 whitespace-pre-wrap">
+                                            {JSON.stringify(selectedForm.data, null, 2)}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end p-6 border-t">
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                                >
+                                    بستن
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )
