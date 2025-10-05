@@ -29,11 +29,11 @@ export default function ArchiveDetailPage() {
 
     useEffect(() => {
         if (params.id) {
-            loadForm(Number(params.id))
+            loadForm(String(params.id))
         }
     }, [params.id])
 
-    const loadForm = async (id: number) => {
+    const loadForm = async (id: string) => {
         try {
             setLoading(true)
             setError(null)

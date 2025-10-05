@@ -7,6 +7,7 @@ from .views.risks import RiskRecordViewSet
 from .views.teams import SafetyTeamViewSet
 from .views.tracking import ActionTrackingViewSet, ChangeLogViewSet, ToolboxMeetingViewSet
 from .views.completed import CompletedActionsView, CompletedRisksView
+from .views.archive import ArchiveViewSet
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="projects")
@@ -20,6 +21,7 @@ router.register(r"actions", ActionFormViewSet, basename="actions")
 router.register(r"action-trackings", ActionTrackingViewSet, basename="action-trackings")
 router.register(r"changes", ChangeLogViewSet, basename="changes")
 router.register(r"tbm", ToolboxMeetingViewSet, basename="tbm")
+router.register(r"archive", ArchiveViewSet, basename="archive")
 
 urlpatterns = [
     path("", include(router.urls)),

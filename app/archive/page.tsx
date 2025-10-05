@@ -35,22 +35,23 @@ export default function ArchivePage() {
             setLoading(true)
             setError(null)
             const data = await fetchArchiveForms(filters)
-            setForms(data)
+            setForms(data || [])
         } catch (err: any) {
             setError('خطا در بارگذاری فرم‌ها')
+            setForms([])
             console.error('Load forms error:', err)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: string) => {
         if (!confirm('آیا مطمئن هستید که می‌خواهید این فرم را حذف کنید؟')) {
             return
         }
 
         try {
-            setDeletingId(id)
+            setDeletingId(Number(id.split('_')[1]))
             await deleteArchiveForm(id)
             setForms(prevForms => prevForms ? prevForms.filter(form => form.id !== id) : [])
         } catch (err: any) {
@@ -197,7 +198,7 @@ export default function ArchivePage() {
                                                     </Link>
                                                     <button
                                                         onClick={() => handleDelete(form.id)}
-                                                        disabled={deletingId === form.id}
+                                                        disabled={deletingId === Number(form.id.split('_')[1])}
                                                         className="text-red-600 hover:text-red-900 flex items-center space-x-1 space-x-reverse disabled:opacity-50"
                                                     >
                                                         <TrashIcon className="h-4 w-4" />

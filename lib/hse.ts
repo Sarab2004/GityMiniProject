@@ -417,7 +417,7 @@ export async function addTBMAttendee(tbmId: number, attendee: TBMAttendeePayload
 
 // Archive API functions
 export interface ArchiveForm {
-    id: number
+    id: string
     form_type: string
     form_number: string
     project: string
@@ -450,7 +450,7 @@ export async function fetchArchiveForms(filters?: ArchiveFilters): Promise<Archi
     }
 }
 
-export async function fetchArchiveForm(id: number): Promise<ArchiveForm> {
+export async function fetchArchiveForm(id: string): Promise<ArchiveForm> {
     try {
         const { data } = await apiFetch<ArchiveForm>(`/api/v1/archive/${id}/`, {
             method: 'GET',
@@ -465,7 +465,7 @@ export async function fetchArchiveForm(id: number): Promise<ArchiveForm> {
     }
 }
 
-export async function deleteArchiveForm(id: number): Promise<void> {
+export async function deleteArchiveForm(id: string): Promise<void> {
     try {
         const { response } = await apiFetch(`/api/v1/archive/${id}/`, {
             method: 'DELETE',
