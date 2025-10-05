@@ -36,7 +36,7 @@ def _unique(sequence):
     return ordered
 
 
-ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "*") or ["*"]
+ALLOWED_HOSTS = _unique(_csv("ALLOWED_HOSTS", "")) or ["*"]
 CSRF_TRUSTED_ORIGINS = _csv("CSRF_TRUSTED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = _csv("CORS_ALLOWED_ORIGINS", "")
 
@@ -54,14 +54,15 @@ else:
 
 backend_trusted_origins = []
 for host in ALLOWED_HOSTS:
-    if host == "*":
+    cleaned = host.strip()
+    if cleaned in {"", "*"} or cleaned.startswith(".") or "*" in cleaned:
         continue
-    if host.startswith("http://") or host.startswith("https://"):
-        backend_trusted_origins.append(host)
-    else:
-        backend_trusted_origins.append(f"https://{host}")
-        if DEBUG:
-            backend_trusted_origins.append(f"http://{host}")
+    if cleaned.startswith("http://") or cleaned.startswith("https://"):
+        backend_trusted_origins.append(cleaned)
+        continue
+    backend_trusted_origins.append(f"https://{cleaned}")
+    if DEBUG:
+        backend_trusted_origins.append(f"http://{cleaned}")
 
 CSRF_TRUSTED_ORIGINS = _unique(CSRF_TRUSTED_ORIGINS + backend_trusted_origins)
 
@@ -94,10 +95,9 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
 CSRF_COOKIE_HTTPONLY = False
-
-# Proxy settings for Railway
+# Honor proxy headers when running behind Railway's load balancer
 USE_X_FORWARDED_HOST = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -196,4 +196,3 @@ SPECTACULAR_SETTINGS = {
 }
 
 LOCALE_PATHS = [BASE_DIR / "locale"]
-
