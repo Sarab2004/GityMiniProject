@@ -190,7 +190,7 @@ export default function ArchivePage() {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div className="flex items-center space-x-2 space-x-reverse">
                                                     <Link
-                                                        href={`/archive/${form.id}`}
+                                                        href={`/archive/forms/${form.form_type}/${form.id}`}
                                                         className="text-blue-600 hover:text-blue-900 flex items-center space-x-1 space-x-reverse"
                                                     >
                                                         <EyeIcon className="h-4 w-4" />
