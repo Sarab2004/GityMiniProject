@@ -33,7 +33,7 @@ class ActionFormViewSet(AuditModelViewSet):
     serializer_class = ActionFormSerializer
     filterset_class = ActionFormFilter
     search_fields = ["indicator", "requester_name", "nonconformity_or_change_desc"]
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):  # type: ignore[override]
         project = serializer.validated_data["project"]
