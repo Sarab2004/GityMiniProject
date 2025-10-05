@@ -52,7 +52,7 @@ export default function ArchivePage() {
         try {
             setDeletingId(id)
             await deleteArchiveForm(id)
-            setForms(forms.filter(form => form.id !== id))
+            setForms(prevForms => prevForms ? prevForms.filter(form => form.id !== id) : [])
         } catch (err: any) {
             setError('خطا در حذف فرم')
             console.error('Delete form error:', err)
@@ -145,7 +145,7 @@ export default function ArchivePage() {
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                             <p className="mt-2 text-text2">در حال بارگذاری...</p>
                         </div>
-                    ) : forms.length === 0 ? (
+                    ) : !forms || forms.length === 0 ? (
                         <div className="p-8 text-center">
                             <p className="text-text2">هیچ فرمی یافت نشد</p>
                         </div>
@@ -172,7 +172,7 @@ export default function ArchivePage() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {forms.map((form) => (
+                                    {forms && forms.map((form) => (
                                         <tr key={form.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text">
                                                 {form.form_number}
