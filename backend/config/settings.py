@@ -36,7 +36,7 @@ def _unique(sequence):
     return ordered
 
 
-ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "") or ["*"]
+ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "*") or ["*"]
 CSRF_TRUSTED_ORIGINS = _csv("CSRF_TRUSTED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = _csv("CORS_ALLOWED_ORIGINS", "")
 
@@ -94,6 +94,10 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
 CSRF_COOKIE_HTTPONLY = False
+
+# Proxy settings for Railway
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 INSTALLED_APPS = [
     "django.contrib.admin",
