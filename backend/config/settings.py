@@ -19,12 +19,16 @@ if env_file.exists():
 SECRET_KEY = env("SECRET_KEY", default="django-insecure-change-me")
 DEBUG = env.bool("DEBUG", default=False)
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+# Helper function for CSV env vars
+def _csv(name, default=""):
+    return [x.strip() for x in env(name, default=default).split(",") if x.strip()]
 
-# CORS settings for development
-CORS_ALLOW_ALL_ORIGINS = True
+ALLOWED_HOSTS = _csv("ALLOWED_HOSTS", "*")
+CSRF_TRUSTED_ORIGINS = _csv("CSRF_TRUSTED_ORIGINS", "")
+CORS_ALLOWED_ORIGINS = _csv("CORS_ALLOWED_ORIGINS", "")
+
+# CORS settings for cross-site
+CORS_ALLOW_ALL_ORIGINS = not CORS_ALLOWED_ORIGINS  # Only allow all if specific origins not set
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_HEADERS = [
     'accept',
@@ -37,13 +41,6 @@ CORS_ALLOWED_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
-
-# CSRF settings
-CSRF_COOKIE_SECURE = False
-CSRF_COOKIE_HTTPONLY = False
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
-
-# Additional CORS settings
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -52,8 +49,15 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
-
 CORS_PREFLIGHT_MAX_AGE = 86400
+
+# Session and CSRF cookies for cross-site
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read it
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -77,7 +81,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    # "django.middleware.csrf.CsrfViewMiddleware",  # Disabled for API
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
