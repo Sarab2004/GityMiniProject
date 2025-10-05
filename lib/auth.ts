@@ -41,8 +41,18 @@ async function parseJsonSafe<T>(response: Response): Promise<T | null> {
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<{ data?: T; response: Response }> {
     try {
-        const headers: Record<string, string> = {
-            ...(options?.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options?.headers ?? {}),
+        const headers: Record<string, string> = {}
+        const providedHeaders = options?.headers
+        if (providedHeaders instanceof Headers) {
+            providedHeaders.forEach((value, key) => {
+                headers[key] = value
+            })
+        } else if (Array.isArray(providedHeaders)) {
+            for (const [key, value] of providedHeaders) {
+                headers[key] = value
+            }
+        } else if (providedHeaders) {
+            Object.assign(headers, providedHeaders as Record<string, string>)
         }
 
         if (options?.body && !headers['Content-Type']) {

@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import Link from 'next/link'
 import { ArrowRightIcon, PrinterIcon, TrashIcon } from '@heroicons/react/24/outline'
 
@@ -7,13 +7,15 @@ interface FormLayoutProps {
     code?: string
     children: React.ReactNode
     onReset?: () => void
+    footer?: React.ReactNode
 }
 
 export const FormLayout: React.FC<FormLayoutProps> = ({
     title,
     code,
     children,
-    onReset
+    onReset,
+    footer,
 }) => {
     const handlePrint = () => {
         window.print()
@@ -21,7 +23,6 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
 
     return (
         <div className="min-h-screen bg-bg">
-            {/* Header */}
             <header className="sticky top-0 z-10 bg-surface border-b border-border shadow-sm no-print">
                 <div className="container mx-auto px-4">
                     <div className="flex items-center justify-between h-16">
@@ -43,16 +44,20 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-3 space-x-reverse">
-                            <button
-                                onClick={onReset}
-                                className="btn-secondary flex items-center space-x-2 space-x-reverse"
-                            >
-                                <TrashIcon className="h-4 w-4" />
-                                <span>پاک‌کردن فرم</span>
-                            </button>
+                            {onReset && (
+                                <button
+                                    onClick={onReset}
+                                    className="btn-secondary flex items-center space-x-2 space-x-reverse"
+                                    type="button"
+                                >
+                                    <TrashIcon className="h-4 w-4" />
+                                    <span>پاک‌کردن فرم</span>
+                                </button>
+                            )}
                             <button
                                 onClick={handlePrint}
                                 className="btn-primary flex items-center space-x-2 space-x-reverse"
+                                type="button"
                             >
                                 <PrinterIcon className="h-4 w-4" />
                                 <span>پرینت</span>
@@ -62,11 +67,11 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
                 </div>
             </header>
 
-            {/* Form Content */}
             <main className="container mx-auto px-4 py-8">
                 <div className="max-w-4xl mx-auto space-y-6">
                     {children}
                 </div>
+                {footer && <div className="max-w-4xl mx-auto mt-8 no-print">{footer}</div>}
             </main>
         </div>
     )
