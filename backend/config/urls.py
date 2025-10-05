@@ -22,9 +22,22 @@ def health_check(request):
 
 @ensure_csrf_cookie
 def csrf_token_view(request):
-    return JsonResponse({
-        "csrfToken": get_token(request)
+    token = get_token(request)
+    response = JsonResponse({
+        "csrfToken": token,
+        "csrfCookieName": "csrftoken",
+        "csrfHeaderName": "X-CSRFToken"
     })
+    # Ensure CSRF cookie is set
+    response.set_cookie(
+        'csrftoken', 
+        token, 
+        max_age=31449600,  # 1 year
+        secure=not request.get_host().startswith('localhost'),
+        samesite='None' if not request.get_host().startswith('localhost') else 'Lax',
+        httponly=False
+    )
+    return response
 
 urlpatterns = [
     path("", health_check, name="health_check"),
