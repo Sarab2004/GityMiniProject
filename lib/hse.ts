@@ -1,4 +1,4 @@
-﻿import { apiFetch } from './auth'
+﻿import { apiFetch, getCsrfToken } from './auth'
 
 export type Option = { value: string; label: string }
 
@@ -26,7 +26,10 @@ export async function createContractor(name: string): Promise<Contractor> {
     const { data, response } = await apiFetch<Contractor>('/api/v1/contractors/', {
         method: 'POST',
         body: JSON.stringify({ name }),
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
     })
     if (!response.ok || !data) {
         throw new Error((data as any)?.detail ?? 'ثبت پیمانکار امکان‌پذیر نشد')
@@ -43,7 +46,10 @@ export async function createOrgUnit(name: string): Promise<OrgUnit> {
     const { data, response } = await apiFetch<OrgUnit>('/api/v1/org-units/', {
         method: 'POST',
         body: JSON.stringify({ name }),
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
     })
     if (!response.ok || !data) {
         throw new Error((data as any)?.detail ?? 'ثبت واحد امکان‌پذیر نشد')
@@ -60,7 +66,10 @@ export async function createSection(name: string, orgUnit: number): Promise<Sect
     const { data, response } = await apiFetch<Section>('/api/v1/sections/', {
         method: 'POST',
         body: JSON.stringify({ name, org_unit: orgUnit }),
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
     })
     if (!response.ok || !data) {
         throw new Error((data as any)?.detail ?? 'ثبت بخش امکان‌پذیر نشد')
@@ -107,6 +116,7 @@ export async function createActionForm(payload: CreateActionPayload): Promise<Ac
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok || !data) {
@@ -128,6 +138,7 @@ export async function createActionItem(actionId: number, payload: CreateActionIt
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok) {
@@ -148,6 +159,7 @@ export async function submitExecutionReport(actionId: number, payload: Execution
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok) {
@@ -168,6 +180,7 @@ export async function submitEffectiveness(actionId: number, payload: Effectivene
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok) {
@@ -210,6 +223,7 @@ export async function createRiskRecord(payload: CreateRiskPayload) {
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok || !data) {
@@ -233,6 +247,7 @@ export async function submitRiskReevaluation(id: number, payload: RiskReevalPayl
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok) {
@@ -261,6 +276,7 @@ export async function createSafetyTeam(payload: CreateSafetyTeamPayload) {
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok || !data) {
@@ -275,6 +291,7 @@ export async function addTeamMember(teamId: number, payload: TeamMemberPayload) 
         body: JSON.stringify(payload),
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
         },
     })
     if (!response.ok) {
@@ -302,7 +319,10 @@ export async function createActionTracking(payload: CreateActionTrackingPayload)
     const { data, response } = await apiFetch('/api/v1/action-trackings/', {
         method: 'POST',
         body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
     })
     if (!response.ok) {
         throw new Error((data as any)?.detail ?? 'ثبت پیگیری اقدام ناموفق بود')
@@ -325,7 +345,10 @@ export async function createChangeLog(payload: CreateChangeLogPayload) {
     const { data, response } = await apiFetch('/api/v1/changes/', {
         method: 'POST',
         body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
     })
     if (!response.ok) {
         throw new Error((data as any)?.detail ?? 'ثبت تغییر ناموفق بود')

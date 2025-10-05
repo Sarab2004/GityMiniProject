@@ -100,19 +100,34 @@ export default function FR0103Page() {
             setError('تاریخ ثبت و تاریخ اجرا الزامی است.')
             return
         }
+        if (!formData.changeResponsible) {
+            setError('مسئول تغییر را وارد کنید.')
+            return
+        }
+        if (formData.requiredActions.length === 0) {
+            setError('حداقل یک اقدام مورد نیاز را وارد کنید.')
+            return
+        }
 
         try {
             setLoading(true)
-            await createChangeLog({
+            const payload: any = {
                 action: Number(formData.actionId),
                 subject_text: formData.changeSubject,
                 date_registered: formData.registrationDate,
                 date_applied: formData.implementationDate,
                 owner_text: formData.changeResponsible,
                 required_actions_text: serializeRequiredActions(formData.requiredActions),
-                related_action_no_text: formData.fr0101Number || undefined,
-                notes_text: formData.description || undefined,
-            })
+            }
+
+            if (formData.fr0101Number) {
+                payload.related_action_no_text = formData.fr0101Number
+            }
+            if (formData.description) {
+                payload.notes_text = formData.description
+            }
+
+            await createChangeLog(payload)
             setSuccess('تغییر با موفقیت ثبت شد.')
             setFormData((prev) => ({ ...initialState, actionId: prev.actionId }))
         } catch (err: any) {
