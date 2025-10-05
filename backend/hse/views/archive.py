@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters import rest_framework as django_filters
@@ -30,6 +30,7 @@ class ArchiveViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = ArchiveFormSerializer
     filterset_class = ArchiveFormFilter
+    permission_classes = [permissions.AllowAny]  # Allow access for now, can be changed to IsAuthenticated later
 
     def get_queryset(self):
         # Get all forms from different models
@@ -41,17 +42,20 @@ class ArchiveViewSet(viewsets.ReadOnlyModelViewSet):
             archive_forms.append({
                 'id': f'action_{form.id}',
                 'form_type': 'action',
-                'form_number': form.action_no_text or f'AS-{form.id}',
+                'form_number': form.indicator,
                 'project': form.project.code,
                 'created_at': form.created_at,
                 'status': 'active',
                 'data': {
-                    'subject': form.subject_text,
-                    'description': form.description_text,
+                    'indicator': form.indicator,
+                    'requester_name': form.requester_name,
+                    'requester_unit': form.requester_unit_text,
+                    'request_date': form.request_date.isoformat(),
                     'request_type': form.request_type,
-                    'source': form.source,
-                    'responsible_person': form.responsible_person_text,
-                    'target_date': form.target_date.isoformat() if form.target_date else None,
+                    'nonconformity_desc': form.nonconformity_or_change_desc,
+                    'root_cause_desc': form.root_cause_or_goal_desc,
+                    'needs_risk_update': form.needs_risk_update,
+                    'creates_knowledge': form.creates_knowledge,
                 }
             })
 
@@ -66,12 +70,15 @@ class ArchiveViewSet(viewsets.ReadOnlyModelViewSet):
                 'created_at': form.created_at,
                 'status': 'active',
                 'data': {
-                    'action_number': form.action.action_no_text,
-                    'progress_percentage': form.progress_percentage,
-                    'execution_description': form.execution_description_text,
-                    'obstacles': form.obstacles_text,
-                    'effectiveness': form.effectiveness,
-                    'effectiveness_description': form.effectiveness_description_text,
+                    'action_indicator': form.action.indicator,
+                    'issue_desc': form.issue_desc,
+                    'action_desc': form.action_desc,
+                    'source': form.source,
+                    'executor': form.executor_text,
+                    'due_date': form.due_date.isoformat(),
+                    'resolved': form.resolved,
+                    'is_knowledge': form.is_knowledge,
+                    'effective': form.effective,
                 }
             })
 
@@ -86,7 +93,7 @@ class ArchiveViewSet(viewsets.ReadOnlyModelViewSet):
                 'created_at': form.created_at,
                 'status': 'active',
                 'data': {
-                    'action_number': form.action.action_no_text,
+                    'action_indicator': form.action.indicator,
                     'subject': form.subject_text,
                     'date_registered': form.date_registered.isoformat(),
                     'date_applied': form.date_applied.isoformat(),

@@ -35,7 +35,8 @@ export default function ArchivePage() {
             setLoading(true)
             setError(null)
             const data = await fetchArchiveForms(filters)
-            setForms(data || [])
+            // Ensure we always set an array
+            setForms(Array.isArray(data) ? data : [])
         } catch (err: any) {
             setError('خطا در بارگذاری فرم‌ها')
             setForms([])
@@ -53,7 +54,7 @@ export default function ArchivePage() {
         try {
             setDeletingId(Number(id.split('_')[1]))
             await deleteArchiveForm(id)
-            setForms(prevForms => prevForms ? prevForms.filter(form => form.id !== id) : [])
+            setForms(prevForms => Array.isArray(prevForms) ? prevForms.filter(form => form.id !== id) : [])
         } catch (err: any) {
             setError('خطا در حذف فرم')
             console.error('Delete form error:', err)
@@ -146,7 +147,7 @@ export default function ArchivePage() {
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                             <p className="mt-2 text-text2">در حال بارگذاری...</p>
                         </div>
-                    ) : !forms || forms.length === 0 ? (
+                    ) : !Array.isArray(forms) || forms.length === 0 ? (
                         <div className="p-8 text-center">
                             <p className="text-text2">هیچ فرمی یافت نشد</p>
                         </div>
@@ -173,7 +174,7 @@ export default function ArchivePage() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {forms && forms.map((form) => (
+                                    {Array.isArray(forms) && forms.map((form) => (
                                         <tr key={form.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text">
                                                 {form.form_number}
