@@ -4,18 +4,10 @@
     full_name: string
 }
 
-const resolveApiBase = (): string => {
-    const envBase = process.env.NEXT_PUBLIC_API_BASE_URL
-    if (envBase && envBase.trim().length > 0) {
-        return envBase.replace(/\/$/, '')
-    }
-    if (typeof window !== 'undefined' && window.location?.origin) {
-        return window.location.origin
-    }
-    return 'http://localhost:8000'
-}
-
-const API_BASE = resolveApiBase()
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim() !== ""
+    ? process.env.NEXT_PUBLIC_API_BASE_URL
+    : "/api";
 
 export const apiBaseUrl = API_BASE
 
@@ -39,48 +31,61 @@ async function parseJsonSafe<T>(response: Response): Promise<T | null> {
     }
 }
 
-export async function apiFetch<T>(path: string, options?: RequestInit): Promise<{ data?: T; response: Response }> {
-    try {
-        const headers: Record<string, string> = {}
-        const providedHeaders = options?.headers
-        if (providedHeaders instanceof Headers) {
-            providedHeaders.forEach((value, key) => {
-                headers[key] = value
-            })
-        } else if (Array.isArray(providedHeaders)) {
-            for (const [key, value] of providedHeaders) {
-                headers[key] = value
-            }
-        } else if (providedHeaders) {
-            Object.assign(headers, providedHeaders as Record<string, string>)
-        }
+export async function apiFetch<T>(
+  path: string,
+  options?: RequestInit
+): Promise<{ data?: T; response: Response }> {
+  try {
+    const headers: Record<string, string> = {};
+    const providedHeaders = options?.headers;
 
-        if (options?.body && !headers['Content-Type']) {
-            headers['Content-Type'] = 'application/json'
-        }
-
-        const fetchOptions: RequestInit = {
-            ...options,
-            credentials: options?.credentials ?? 'include',
-            headers,
-        }
-
-        const response = await fetch(`${API_BASE}${path}`, fetchOptions)
-        if (response.ok) {
-            const data = await parseJsonSafe<T>(response)
-            return { data: data ?? ({} as T), response }
-        }
-        const errorPayload = (await parseJsonSafe<T>(response)) ?? ({ detail: 'خطای ناشناخته' } as T)
-        return { data: errorPayload, response }
-    } catch (error) {
-        console.error('apiFetch network error', error)
-        throw new Error('NETWORK_ERROR')
+    if (providedHeaders instanceof Headers) {
+      providedHeaders.forEach((value, key) => (headers[key] = value));
+    } else if (Array.isArray(providedHeaders)) {
+      for (const [key, value] of providedHeaders) headers[key] = value;
+    } else if (providedHeaders) {
+      Object.assign(headers, providedHeaders as Record<string, string>);
     }
+
+    if (options?.body && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    // NEW: تضمین JSON و تزریق CSRF برای درخواست‌های تغییردهنده
+    headers["Accept"] = headers["Accept"] ?? "application/json";
+    const method = (options?.method ?? "GET").toUpperCase();
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !headers["X-CSRFToken"]) {
+      const csrftoken = getCookie("csrftoken");
+      if (csrftoken) headers["X-CSRFToken"] = csrftoken;
+    }
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      credentials: options?.credentials ?? "include",
+      headers,
+    };
+
+    const buildUrl = (p: string) => {
+      if (p.startsWith('http')) return p
+      if (p.startsWith('/api/')) return p      // ایمن‌سازی در صورت باقی‌ماندن مسیر قدیمی
+      return `${API_BASE}${p}`
+    }
+    const response = await fetch(buildUrl(path), fetchOptions);
+    if (response.ok) {
+      const data = await parseJsonSafe<T>(response);
+      return { data: data ?? ({} as T), response };
+    }
+    const errorPayload = (await parseJsonSafe<T>(response)) ?? ({ detail: "خطای ناشناخته" } as T);
+    return { data: errorPayload, response };
+  } catch (error) {
+    console.error("apiFetch network error", error);
+    throw new Error("NETWORK_ERROR");
+  }
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
     try {
-        const { data, response } = await apiFetch<{ user: AuthUser }>('/api/v1/auth/me/', {
+        const { data, response } = await apiFetch<{ user: AuthUser }>('/v1/auth/me/', {
             method: 'GET',
             cache: 'no-store',
         })
@@ -96,7 +101,7 @@ export async function fetchMe(): Promise<AuthUser | null> {
 export async function login(username: string, password: string): Promise<{ user?: AuthUser; error?: string }> {
     const csrf = getCookie('csrftoken') ?? ''
     try {
-        const { data, response } = await apiFetch<{ user: AuthUser; detail?: string }>('/api/v1/auth/login/', {
+        const { data, response } = await apiFetch<{ user: AuthUser; detail?: string }>('/v1/auth/login/', {
             method: 'POST',
             body: JSON.stringify({ username, password }),
             headers: {
@@ -117,7 +122,7 @@ export async function login(username: string, password: string): Promise<{ user?
 export async function logout(): Promise<void> {
     const csrf = getCookie('csrftoken') ?? ''
     try {
-        await apiFetch('/api/v1/auth/logout/', {
+        await apiFetch('/v1/auth/logout/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrf,
@@ -131,3 +136,4 @@ export async function logout(): Promise<void> {
 export function getCsrfToken(): string {
     return getCookie('csrftoken') ?? ''
 }
+

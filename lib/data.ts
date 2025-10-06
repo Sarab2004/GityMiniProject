@@ -22,7 +22,7 @@ export type CompletedAction = {
 
 export async function fetchCompletedRisks(): Promise<CompletedRisk[]> {
     try {
-        const { data } = await apiFetch<CompletedRisk[]>('/api/v1/completed/risks/', {
+        const { data } = await apiFetch<CompletedRisk[]>('/v1/completed/risks/', {
             method: 'GET',
             cache: 'no-store',
         })
@@ -34,7 +34,7 @@ export async function fetchCompletedRisks(): Promise<CompletedRisk[]> {
 
 export async function fetchCompletedActions(): Promise<CompletedAction[]> {
     try {
-        const { data } = await apiFetch<CompletedAction[]>('/api/v1/completed/actions/', {
+        const { data } = await apiFetch<CompletedAction[]>('/v1/completed/actions/', {
             method: 'GET',
             cache: 'no-store',
         })
@@ -45,7 +45,7 @@ export async function fetchCompletedActions(): Promise<CompletedAction[]> {
 }
 
 export async function softDeleteRisk(id: number): Promise<void> {
-    await apiFetch(`/api/v1/risks/${id}/`, {
+    await apiFetch(`/v1/risks/${id}/`, {
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken(),
@@ -54,7 +54,7 @@ export async function softDeleteRisk(id: number): Promise<void> {
 }
 
 export async function softDeleteAction(id: number): Promise<void> {
-    await apiFetch(`/api/v1/actions/${id}/`, {
+    await apiFetch(`/v1/actions/${id}/`, {
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken(),
