@@ -65,7 +65,12 @@ export async function apiFetch<T>(
       headers,
     };
 
-    const response = await fetch(`${API_BASE}${path}`, fetchOptions);
+    const buildUrl = (p: string) => {
+      if (p.startsWith('http')) return p
+      if (p.startsWith('/api/')) return p      // ایمن‌سازی در صورت باقی‌ماندن مسیر قدیمی
+      return `${API_BASE}${p}`
+    }
+    const response = await fetch(buildUrl(path), fetchOptions);
     if (response.ok) {
       const data = await parseJsonSafe<T>(response);
       return { data: data ?? ({} as T), response };
@@ -80,7 +85,7 @@ export async function apiFetch<T>(
 
 export async function fetchMe(): Promise<AuthUser | null> {
     try {
-        const { data, response } = await apiFetch<{ user: AuthUser }>('/api/v1/auth/me/', {
+        const { data, response } = await apiFetch<{ user: AuthUser }>('/v1/auth/me/', {
             method: 'GET',
             cache: 'no-store',
         })
@@ -96,7 +101,7 @@ export async function fetchMe(): Promise<AuthUser | null> {
 export async function login(username: string, password: string): Promise<{ user?: AuthUser; error?: string }> {
     const csrf = getCookie('csrftoken') ?? ''
     try {
-        const { data, response } = await apiFetch<{ user: AuthUser; detail?: string }>('/api/v1/auth/login/', {
+        const { data, response } = await apiFetch<{ user: AuthUser; detail?: string }>('/v1/auth/login/', {
             method: 'POST',
             body: JSON.stringify({ username, password }),
             headers: {
@@ -117,7 +122,7 @@ export async function login(username: string, password: string): Promise<{ user?
 export async function logout(): Promise<void> {
     const csrf = getCookie('csrftoken') ?? ''
     try {
-        await apiFetch('/api/v1/auth/logout/', {
+        await apiFetch('/v1/auth/logout/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrf,

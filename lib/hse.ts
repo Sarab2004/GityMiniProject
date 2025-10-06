@@ -13,17 +13,17 @@ export type OrgUnit = { id: number; name: string }
 export type Section = { id: number; name: string; org_unit: number }
 
 export async function fetchProjects(): Promise<Project[]> {
-    const { data } = await apiFetch<Project[]>('/api/v1/projects/', { method: 'GET' })
+    const { data } = await apiFetch<Project[]>('/v1/projects/', { method: 'GET' })
     return data ?? []
 }
 
 export async function fetchContractors(): Promise<Contractor[]> {
-    const { data } = await apiFetch<Contractor[]>('/api/v1/contractors/', { method: 'GET' })
+    const { data } = await apiFetch<Contractor[]>('/v1/contractors/', { method: 'GET' })
     return data ?? []
 }
 
 export async function createContractor(name: string): Promise<Contractor> {
-    const { data, response } = await apiFetch<Contractor>('/api/v1/contractors/', {
+    const { data, response } = await apiFetch<Contractor>('/v1/contractors/', {
         method: 'POST',
         body: JSON.stringify({ name }),
         headers: {
@@ -38,12 +38,12 @@ export async function createContractor(name: string): Promise<Contractor> {
 }
 
 export async function fetchOrgUnits(): Promise<OrgUnit[]> {
-    const { data } = await apiFetch<OrgUnit[]>('/api/v1/org-units/', { method: 'GET' })
+    const { data } = await apiFetch<OrgUnit[]>('/v1/org-units/', { method: 'GET' })
     return data ?? []
 }
 
 export async function createOrgUnit(name: string): Promise<OrgUnit> {
-    const { data, response } = await apiFetch<OrgUnit>('/api/v1/org-units/', {
+    const { data, response } = await apiFetch<OrgUnit>('/v1/org-units/', {
         method: 'POST',
         body: JSON.stringify({ name }),
         headers: {
@@ -58,12 +58,12 @@ export async function createOrgUnit(name: string): Promise<OrgUnit> {
 }
 
 export async function fetchSections(): Promise<Section[]> {
-    const { data } = await apiFetch<Section[]>('/api/v1/sections/', { method: 'GET' })
+    const { data } = await apiFetch<Section[]>('/v1/sections/', { method: 'GET' })
     return data ?? []
 }
 
 export async function createSection(name: string, orgUnit: number): Promise<Section> {
-    const { data, response } = await apiFetch<Section>('/api/v1/sections/', {
+    const { data, response } = await apiFetch<Section>('/v1/sections/', {
         method: 'POST',
         body: JSON.stringify({ name, org_unit: orgUnit }),
         headers: {
@@ -85,7 +85,7 @@ export type ActionSummary = {
 }
 
 export async function fetchActions(): Promise<ActionSummary[]> {
-    const { data } = await apiFetch<ActionSummary[]>('/api/v1/actions/', { method: 'GET' })
+    const { data } = await apiFetch<ActionSummary[]>('/v1/actions/', { method: 'GET' })
     return data ?? []
 }
 
@@ -111,7 +111,7 @@ export type ActionFormResponse = {
 }
 
 export async function createActionForm(payload: CreateActionPayload): Promise<ActionFormResponse> {
-    const { data, response } = await apiFetch<ActionFormResponse>('/api/v1/actions/', {
+    const { data, response } = await apiFetch<ActionFormResponse>('/v1/actions/', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -133,7 +133,7 @@ export type CreateActionItemPayload = {
 }
 
 export async function createActionItem(actionId: number, payload: CreateActionItemPayload): Promise<void> {
-    const { response, data } = await apiFetch(`/api/v1/actions/${actionId}/items/`, {
+    const { response, data } = await apiFetch(`/v1/actions/${actionId}/items/`, {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -154,7 +154,7 @@ export type ExecutionReportPayload = {
 }
 
 export async function submitExecutionReport(actionId: number, payload: ExecutionReportPayload): Promise<void> {
-    const { response, data } = await apiFetch(`/api/v1/actions/${actionId}/execution-report/`, {
+    const { response, data } = await apiFetch(`/v1/actions/${actionId}/execution-report/`, {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -175,7 +175,7 @@ export type EffectivenessPayload = {
 }
 
 export async function submitEffectiveness(actionId: number, payload: EffectivenessPayload): Promise<void> {
-    const { response, data } = await apiFetch(`/api/v1/actions/${actionId}/effectiveness/`, {
+    const { response, data } = await apiFetch(`/v1/actions/${actionId}/effectiveness/`, {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -218,7 +218,7 @@ export type RiskRecordResponse = {
 }
 
 export async function createRiskRecord(payload: CreateRiskPayload) {
-    const { data, response } = await apiFetch<RiskRecordResponse>('/api/v1/risks/', {
+    const { data, response } = await apiFetch<RiskRecordResponse>('/v1/risks/', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -242,7 +242,7 @@ export type RiskReevalPayload = {
 }
 
 export async function submitRiskReevaluation(id: number, payload: RiskReevalPayload) {
-    const { response, data } = await apiFetch(`/api/v1/risks/${id}/reeval/`, {
+    const { response, data } = await apiFetch(`/v1/risks/${id}/reeval/`, {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -271,7 +271,7 @@ export type TeamMemberPayload = {
 }
 
 export async function createSafetyTeam(payload: CreateSafetyTeamPayload) {
-    const { data, response } = await apiFetch<{ id: number }>('/api/v1/safety-teams/', {
+    const { data, response } = await apiFetch<{ id: number }>('/v1/safety-teams/', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -286,7 +286,7 @@ export async function createSafetyTeam(payload: CreateSafetyTeamPayload) {
 }
 
 export async function addTeamMember(teamId: number, payload: TeamMemberPayload) {
-    const { response, data } = await apiFetch(`/api/v1/safety-teams/${teamId}/members/`, {
+    const { response, data } = await apiFetch(`/v1/safety-teams/${teamId}/members/`, {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -316,7 +316,7 @@ export type CreateActionTrackingPayload = {
 }
 
 export async function createActionTracking(payload: CreateActionTrackingPayload) {
-    const { data, response } = await apiFetch('/api/v1/action-trackings/', {
+    const { data, response } = await apiFetch('/v1/action-trackings/', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -342,7 +342,7 @@ export type CreateChangeLogPayload = {
 }
 
 export async function createChangeLog(payload: CreateChangeLogPayload) {
-    const { data, response } = await apiFetch('/api/v1/changes/', {
+    const { data, response } = await apiFetch('/v1/changes/', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -386,7 +386,7 @@ export interface TBMResponse {
 }
 
 export async function createToolboxMeeting(payload: CreateTBMPayload): Promise<TBMResponse> {
-    const { data, response } = await apiFetch<TBMResponse>('/api/v1/tbm/', {
+    const { data, response } = await apiFetch<TBMResponse>('/v1/tbm/', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
@@ -401,7 +401,7 @@ export async function createToolboxMeeting(payload: CreateTBMPayload): Promise<T
 }
 
 export async function addTBMAttendee(tbmId: number, attendee: TBMAttendeePayload): Promise<TBMAttendeePayload> {
-    const { data, response } = await apiFetch<TBMAttendeePayload>(`/api/v1/tbm/${tbmId}/attendees/`, {
+    const { data, response } = await apiFetch<TBMAttendeePayload>(`/v1/tbm/${tbmId}/attendees/`, {
         method: 'POST',
         body: JSON.stringify(attendee),
         headers: {
@@ -438,7 +438,7 @@ export async function fetchArchiveForms(filters?: ArchiveFilters): Promise<Archi
         if (filters?.form_type) params.append('form_type', filters.form_type)
         
         const queryString = params.toString()
-        const url = queryString ? `/api/v1/archive/?${queryString}` : '/api/v1/archive/'
+        const url = queryString ? `/v1/archive/?${queryString}` : '/v1/archive/'
         
         const { data } = await apiFetch<ArchiveForm[]>(url, {
             method: 'GET',
@@ -452,7 +452,7 @@ export async function fetchArchiveForms(filters?: ArchiveFilters): Promise<Archi
 
 export async function fetchArchiveForm(id: string): Promise<ArchiveForm> {
     try {
-        const { data } = await apiFetch<ArchiveForm>(`/api/v1/archive/${id}/`, {
+        const { data } = await apiFetch<ArchiveForm>(`/v1/archive/${id}/`, {
             method: 'GET',
             cache: 'no-store',
         })
@@ -467,7 +467,7 @@ export async function fetchArchiveForm(id: string): Promise<ArchiveForm> {
 
 export async function deleteArchiveForm(id: string): Promise<void> {
     try {
-        const { response } = await apiFetch(`/api/v1/archive/${id}/`, {
+        const { response } = await apiFetch(`/v1/archive/${id}/`, {
             method: 'DELETE',
             headers: {
                 'X-CSRFToken': getCsrfToken(),
