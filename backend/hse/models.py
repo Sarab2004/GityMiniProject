@@ -162,7 +162,7 @@ class RequestType(models.TextChoices):
 
 
 class ActionForm(TimeStampedModel):
-    indicator = models.CharField(max_length=7, unique=True)
+    indicator = models.CharField(max_length=12, unique=True)
     project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name="actions")
     requester_name = models.CharField(max_length=255)
     requester_unit_text = models.CharField(max_length=255)
@@ -179,14 +179,13 @@ class ActionForm(TimeStampedModel):
     exec1_approved = models.BooleanField(null=True, blank=True)
     exec1_note = models.TextField(null=True, blank=True)
     exec1_new_date = models.DateField(null=True, blank=True)
-    exec2_approved = models.BooleanBooleanField = models.BooleanField
     exec2_approved = models.BooleanField(null=True, blank=True)
     exec2_note = models.TextField(null=True, blank=True)
     exec2_new_date = models.DateField(null=True, blank=True)
     effectiveness_checked_at = models.DateField(null=True, blank=True)
     effectiveness_method_text = models.TextField(null=True, blank=True)
     effective = models.BooleanField(null=True, blank=True)
-    new_action_indicator = models.CharField(max_length=7, null=True, blank=True)
+    new_action_indicator = models.CharField(max_length=12, null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -243,7 +242,7 @@ class ActionTracking(TimeStampedModel):
     resolved = models.BooleanField(null=True, blank=True)
     is_knowledge = models.BooleanField(null=True, blank=True)
     effective = models.BooleanField(null=True, blank=True)
-    new_action_indicator = models.CharField(max_length=7, null=True, blank=True)
+    new_action_indicator = models.CharField(max_length=12, null=True, blank=True)
 
     class Meta:
         indexes = [
