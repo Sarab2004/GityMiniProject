@@ -10,6 +10,15 @@ const resolveApiBase = (): string => {
         return envBase.replace(/\/$/, '')
     }
     if (typeof window !== 'undefined' && window.location?.origin) {
+        try {
+            const current = new URL(window.location.origin)
+            const isLocalDev = ['localhost', '127.0.0.1'].includes(current.hostname) && ['3000', '3001', '3002'].includes(current.port || '')
+            if (isLocalDev) {
+                return 'http://localhost:8000'
+            }
+        } catch (error) {
+            console.warn('Unable to infer API base from window.origin', error)
+        }
         return window.location.origin
     }
     return 'http://localhost:8000'
@@ -131,3 +140,4 @@ export async function logout(): Promise<void> {
 export function getCsrfToken(): string {
     return getCookie('csrftoken') ?? ''
 }
+
