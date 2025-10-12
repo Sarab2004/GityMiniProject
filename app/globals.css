@@ -4,7 +4,8 @@
 
 @font-face {
   font-family: 'Peyda';
-  src: url('/fonts/peyda/PEYDA-REGULAR.woff2') format('woff2');
+  src: url('/fonts/peyda/PEYDA-REGULAR.woff2') format('woff2'),
+       url('/fonts/peyda/PEYDA-REGULAR.TTF') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -12,7 +13,8 @@
 
 @font-face {
   font-family: 'Peyda';
-  src: url('/fonts/peyda/PEYDA-MEDIUM.woff2') format('woff2');
+  src: url('/fonts/peyda/PEYDA-MEDIUM.woff2') format('woff2'),
+       url('/fonts/peyda/PEYDA-MEDIUM.TTF') format('truetype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -20,7 +22,8 @@
 
 @font-face {
   font-family: 'Peyda';
-  src: url('/fonts/peyda/PEYDA-SEMIBOLD.woff2') format('woff2');
+  src: url('/fonts/peyda/PEYDA-SEMIBOLD.woff2') format('woff2'),
+       url('/fonts/peyda/PEYDA-SEMIBOLD.TTF') format('truetype');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -28,7 +31,8 @@
 
 @font-face {
   font-family: 'Peyda';
-  src: url('/fonts/peyda/PEYDA-BOLD.woff2') format('woff2');
+  src: url('/fonts/peyda/PEYDA-BOLD.woff2') format('woff2'),
+       url('/fonts/peyda/PEYDA-BOLD.TTF') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;

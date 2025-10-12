@@ -198,7 +198,11 @@ class Command(BaseCommand):
 
         summary = self._build_summary([spec["username"] for spec in structure])
         self.stdout.write(self.style.SUCCESS("Seeded organization users:"))
-        self.stdout.write(json.dumps(summary, ensure_ascii=False, indent=2))
+        try:
+            self.stdout.write(json.dumps(summary, ensure_ascii=False, indent=2))
+        except UnicodeEncodeError:
+            # Fallback for Windows console encoding issues
+            self.stdout.write(json.dumps(summary, ensure_ascii=True, indent=2))
 
     def _build_summary(self, usernames: List[str]) -> List[Dict[str, Any]]:
         users = (
