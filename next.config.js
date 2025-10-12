@@ -7,6 +7,16 @@ const nextConfig = {
     },
     experimental: {
         esmExternals: false
+    },
+    webpack: (config) => {
+        config.optimization = config.optimization || {}
+        config.optimization.splitChunks = {
+            ...(config.optimization.splitChunks || {}),
+            chunks: 'all',
+            maxSize: 244000
+        }
+        config.optimization.minimize = false
+        return config
     }
 }
 

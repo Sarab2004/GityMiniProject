@@ -5,6 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PropsWithChildren, useMemo } from "react";
 
+import NoAccess from "@/components/ui/NoAccess";
+import { useMeProfile } from "@/hooks/useAuth";
+
 const tabs = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/organization", label: "Organization" },
@@ -12,6 +15,7 @@ const tabs = [
 
 export default function AdminLayout({ children }: PropsWithChildren) {
   const pathname = usePathname();
+  const { loading, error, isAdmin } = useMeProfile();
 
   const activeHref = useMemo(() => {
     if (!pathname) return "";
@@ -22,6 +26,32 @@ export default function AdminLayout({ children }: PropsWithChildren) {
     }
     return "";
   }, [pathname]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="card w-full max-w-sm animate-pulse bg-white p-6 text-center text-sm text-slate-500">
+          در حال بررسی سطح دسترسی ادمین...
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !isAdmin) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <NoAccess
+          title="پنل ادمین"
+          description="فقط ادمین‌ها به این بخش دسترسی دارند."
+        />
+      </div>
+    );
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.debug("[AdminLayout] Admin access granted");
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

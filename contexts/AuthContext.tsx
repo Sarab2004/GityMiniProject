@@ -19,13 +19,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const refresh = useCallback(async () => {
         setLoading(true)
-        const currentUser = await fetchMe()
-        setUser(currentUser)
-        setLoading(false)
+        try {
+            // اضافه کردن timeout برای جلوگیری از loading بی‌نهایت
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout')), 5000)
+            )
+
+            const currentUser = (await Promise.race([fetchMe(), timeoutPromise])) as AuthUser | null
+            setUser(currentUser)
+        } catch (error) {
+            console.log('Auth refresh failed:', error)
+            setUser(null)
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
     useEffect(() => {
-        refresh().catch(() => setLoading(false))
+        refresh()
     }, [refresh])
 
     const login = useCallback(async (username: string, password: string) => {

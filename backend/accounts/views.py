@@ -239,6 +239,24 @@ class MePermissionsView(APIView):
         return Response(permissions_map)
 
 
+class MeProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            display_name = user.profile.display_name
+        except UserProfile.DoesNotExist:
+            display_name = None
+        data = {
+            "username": user.username,
+            "display_name": display_name,
+            "is_staff": bool(user.is_staff),
+            "is_superuser": bool(user.is_superuser),
+        }
+        return Response(data)
+
+
 class AdminUserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAdminUser]
     serializer_class = AdminUserSerializer

@@ -1,4 +1,8 @@
+'use client'
+
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   DocumentTextIcon,
   ClipboardDocumentCheckIcon,
@@ -6,79 +10,144 @@ import {
   UserGroupIcon,
   ExclamationTriangleIcon,
   AcademicCapIcon,
+  Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 
 import PermissionGate from "@/components/PermissionGate";
 import NoAccess from "@/components/ui/NoAccess";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMeProfile } from "@/hooks/useAuth";
 
 const forms = [
   {
     id: "fr-01-01",
-    title:
-      "OU,O_OU. OO�U,OO-UO/U_UOO'U_UOO�OU+U�/O�O�UOUOO�OO�",
+    title: "فرم ارزیابی ریسک/شناسایی خطرات",
     code: "FR-01-01-00",
     href: "/forms/fr-01-01",
     icon: DocumentTextIcon,
     description:
-      "O�O\"O� U^ U_UOU_UOO�UO OU,O_OU.OO� OO�U,OO-UOOO U_UOO'U_UOO�OU+U� U^ O�O�UOUOO�OO�",
+      "ارزیابی و شناسایی خطرات محیط کار و عوامل تهدیدکننده ایمنی",
   },
   {
     id: "fr-01-02",
-    title: "U_UOU_UOO�UO OU,O_OU.OO�",
+    title: "فرم گزارش حادثه",
     code: "FR-01-02-00",
     href: "/forms/fr-01-02",
     icon: ClipboardDocumentCheckIcon,
     description:
-      "U_UOU_UOO�UO U^ O\"O�O�O3UO U^OO1UOO� OU,O_OU.OO� OU+O�OU. O'O_U�",
+      "گزارش و ثبت حوادث و رویدادهای ایمنی در محیط کار",
   },
   {
     id: "fr-01-03",
-    title: "O�O\"O� U^ U_UOU_UOO�UO O�O�UOUOO�OO�",
+    title: "فرم اقدامات اصلاحی",
     code: "FR-01-03-00",
     href: "/forms/fr-01-03",
     icon: PencilSquareIcon,
     description:
-      "O�O\"O� U^ U.O_UOO�UOO� O�O�UOUOO�OO� O_O� U?O�O�UOU+O_U�O U^ O3UOO3O�U.?OU�O",
+      "ثبت و پیگیری اقدامات اصلاحی و پیشگیرانه برای بهبود ایمنی",
   },
   {
     id: "fr-01-12",
-    title: "O�O'UcUOU, O�UOU. U�U.UOOO�OU+ HSE",
+    title: "فرم آموزش کارکنان HSE",
     code: "FR-01-12-00",
     href: "/forms/fr-01-12",
     icon: UserGroupIcon,
     description:
-      "O�O'UcUOU, U^ U.O_UOO�UOO� O�UOU.?OU�OUO U�U.UOOO�OU+ OUOU.U+UO U^ O\"U�O_OO'O�",
+      "ثبت و پیگیری آموزش‌های ایمنی و بهداشت کارکنان",
   },
   {
     id: "fr-01-28",
-    title: "O'U+OO3OUOUO U^ OO�O�UOOO\"UO O�UOO3Uc",
+    title: "فرم بازرسی تجهیزات",
     href: "/forms/fr-01-28",
     icon: ExclamationTriangleIcon,
     description:
-      "O'U+OO3OUOUOOO OO�O�UOOO\"UO U^ U.O_UOO�UOO� O�UOO3Uc?OU�OUO OUOU.U+UOOO O\"U�O_OO'O�UO U^ OU.U^OU,",
+      "بازرسی و کنترل تجهیزات ایمنی و ابزارهای حفاظت فردی",
   },
   {
     id: "fr-01-10",
-    title: "TBM - O�U.U^O�O' O-UOU+ UcOO�",
+    title: "TBM - فرم آموزش عمومی",
     code: "PR-01-07-01",
     href: "/forms/fr-01-10",
     icon: AcademicCapIcon,
     description:
-      "O�O\"O� O�U,O3OO� O�U.U^O�O' O-UOU+ UcOO� U^ O�U.U^O�O'?OU�OUO OUOU.U+UO",
+      "ثبت و پیگیری آموزش‌های عمومی ایمنی و بهداشت",
   },
 ];
 
 export default function HomePage() {
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
+  const {
+    loading: profileLoading,
+    error: profileError,
+    isAdmin,
+  } = useMeProfile();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [loading, user, router]);
+
+  // اضافه کردن timeout برای جلوگیری از loading بی‌نهایت
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.log('Loading timeout - redirecting to login');
+        router.replace('/login');
+      }
+    }, 10000); // 10 ثانیه timeout
+
+    return () => clearTimeout(timer);
+  }, [loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+          <p className="text-text2">در حال بارگذاری...</p>
+          <p className="text-xs text-muted mt-2">اگر بیش از 10 ثانیه طول کشید، به صفحه لاگین هدایت می‌شوید</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Will redirect to login
+  }
+
   return (
     <div className="min-h-screen bg-bg">
+      {/* Header */}
+      <header className="border-b border-border bg-surface">
+        <div className="container mx-auto flex items-center justify-between px-4 py-4">
+          <div>
+            <h1 className="text-xl font-semibold text-text">سیستم HSE</h1>
+          </div>
+          <div className="flex items-center space-x-4 space-x-reverse">
+            <span className="text-sm text-text2">
+              {user.full_name || user.username}
+            </span>
+            <button
+              onClick={() => {
+                logout().then(() => router.replace('/login'));
+              }}
+              className="text-sm text-danger hover:text-red-700"
+            >
+              خروج
+            </button>
+          </div>
+        </div>
+      </header>
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-12 text-center">
-          <h1 className="mb-4 text-4xl font-bold text-text">
-            O3UOO3O�U. U?O�U.?OU�OUO HSE
-          </h1>
+          <h2 className="mb-4 text-3xl font-bold text-text">
+            داشبورد HSE
+          </h2>
           <p className="mx-auto max-w-2xl text-lg text-text2">
-            O3UOO3O�U. U.O_UOO�UOO� U?O�U.?OU�OUO OUOU.U+UOOO O\"U�O_OO'O�
-            U^ U.O-UOO� O�UOO3O�
+            خوش آمدید، {user.full_name || user.username}
           </p>
         </div>
 
@@ -93,6 +162,37 @@ export default function HomePage() {
             />
           }
         >
+          <div className="mx-auto mb-8 flex max-w-6xl flex-col gap-4 md:flex-row md:items-stretch">
+            {profileLoading ? (
+              <div className="card flex-1 animate-pulse bg-surface p-6 text-left text-text2">
+                در حال بررسی نقش‌های مدیریتی...
+              </div>
+            ) : isAdmin ? (
+              <Link
+                href="/admin"
+                className="group card flex-1 p-6 transition-shadow duration-200 hover:shadow-md"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 transition-colors duration-200 group-hover:bg-amber-600 group-hover:text-white">
+                    <Cog6ToothIcon className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-text transition-colors duration-200 group-hover:text-amber-700 group-hover:underline">
+                      پنل ادمین
+                    </h3>
+                    <p className="mt-1 text-sm leading-relaxed text-text2">
+                      مدیریت کاربران، ساختار سازمانی و تنظیم مجوزها.
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ) : null}
+            {profileError && process.env.NODE_ENV !== "production" ? (
+              <div className="card flex-1 border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                خطا در بررسی نقش ادمین: {profileError}
+              </div>
+            ) : null}
+          </div>
           <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {forms.map((form) => {
               const IconComponent = form.icon;
@@ -122,7 +222,7 @@ export default function HomePage() {
                   </p>
                   <div className="mt-4 border-t border-divider pt-4">
                     <span className="text-sm font-medium text-primary transition-colors duration-200 group-hover:text-primaryHover">
-                      O'O�U^O1 U?O�U. �+?
+                      مشاهده فرم →
                     </span>
                   </div>
                 </Link>
@@ -160,7 +260,7 @@ export default function HomePage() {
                   d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
                 />
               </svg>
-              O�O�O'UOU^ U?O�U.?OU�OUO O�O\"O� O'O_U�
+              مشاهده آرشیو فرم‌ها
             </Link>
           </PermissionGate>
         </div>

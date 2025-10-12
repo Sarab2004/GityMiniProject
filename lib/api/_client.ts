@@ -1,11 +1,17 @@
-import { getCsrfToken } from "../auth";
+import { apiBaseUrl, getCsrfToken } from "../auth";
 
 type PrimitiveValue = string | number | boolean | null | undefined;
 type QueryParams = Record<string, PrimitiveValue | PrimitiveValue[]>;
 
-const DEFAULT_PREFIX = "/api/v1";
+const DEFAULT_PREFIX = "/v1";
 
-const basePrefixValue = computeBasePrefix(process.env.NEXT_PUBLIC_API_PREFIX);
+const rawPrefix =
+  process.env.NEXT_PUBLIC_API_PREFIX && process.env.NEXT_PUBLIC_API_PREFIX.trim()
+    ? process.env.NEXT_PUBLIC_API_PREFIX
+    : undefined;
+
+const computedPrefix = computeBasePrefix(rawPrefix);
+const basePrefixValue = ensureAbsolutePrefix(computedPrefix, apiBaseUrl);
 
 function computeBasePrefix(prefix?: string | null): string {
   if (!prefix) {
@@ -24,6 +30,18 @@ function computeBasePrefix(prefix?: string | null): string {
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function ensureAbsolutePrefix(prefix: string, baseUrl: string): string {
+  if (/^https?:\/\//i.test(prefix)) {
+    return prefix.replace(/\/+$/, "");
+  }
+  if (baseUrl && /^https?:\/\//i.test(baseUrl)) {
+    const cleanBase = stripTrailingSlash(baseUrl);
+    const cleanPrefix = prefix.startsWith("/") ? prefix : `/${prefix}`;
+    return `${cleanBase}${cleanPrefix}`.replace(/\/+$/, "");
+  }
+  return prefix.replace(/\/+$/, "");
 }
 
 function joinPaths(base: string, path: string): string {
