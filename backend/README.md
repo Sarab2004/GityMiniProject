@@ -26,9 +26,9 @@
    ```bash
    python manage.py createsuperuser
    ```
-6. (Optional) Seed demo data:
+6. (Optional) Seed sample organization data:
    ```bash
-   python manage.py seed_demo
+   python manage.py seed_org
    ```
 
 ## Running
@@ -44,6 +44,24 @@ The API is available under `http://localhost:8000/api/v1/` and requires session 
 ```bash
 python manage.py test
 ```
+
+## Seeding Sample Organization
+Populate a starter hierarchy (CEO → HSE Manager → Nurse) along with baseline permissions:
+
+```bash
+python manage.py seed_org
+```
+
+Optional flags:
+
+- `--password <value>` – set a custom password (default: `Seed_1234`)
+- `--hse-can-create` – allow the HSE Manager to create forms/actions
+- `--reset-password` – force-reset passwords for existing seeded users
+
+The command prints a JSON snapshot of the created/updated users, their reporting chain, and permissions. Related APIs for verification:
+
+- Tree view: `GET /api/v1/auth/admin/org/tree/`
+- Current user permissions: `GET /api/v1/auth/me/permissions/`
 
 ## Frontend Integration Notes
 - All API requests must send `credentials: 'include'` to leverage Django session auth.

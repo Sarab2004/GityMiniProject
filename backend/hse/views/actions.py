@@ -1,9 +1,10 @@
 import django_filters
 from django.utils import timezone
-from rest_framework import status, permissions
+from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from accounts.permissions import HasResourcePermission
 from ..models import ActionForm
 from ..serializers.actions import (
     ActionEffectivenessSerializer,
@@ -28,12 +29,20 @@ class ActionFormFilter(django_filters.FilterSet):
         }
 
 
+# NOTE: Sample RBAC gate wired for phase 4; full rollout happens in later stages.
 class ActionFormViewSet(AuditModelViewSet):
     queryset = ActionForm.objects.select_related("project").prefetch_related("items", "trackings")
     serializer_class = ActionFormSerializer
     filterset_class = ActionFormFilter
     search_fields = ["indicator", "requester_name", "nonconformity_or_change_desc"]
     permission_classes = [permissions.AllowAny]
+    required_resource = "forms"
+    required_action = "create"
+
+    def get_permissions(self):  # type: ignore[override]
+        if getattr(self, "action", None) == "create":
+            return [permissions.IsAuthenticated(), HasResourcePermission()]
+        return [permission() for permission in self.permission_classes]
 
     def perform_create(self, serializer):  # type: ignore[override]
         project = serializer.validated_data["project"]
