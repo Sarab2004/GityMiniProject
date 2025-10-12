@@ -140,6 +140,42 @@ export default function AdminUsersPage() {
     setIsCreateOpen(true);
   };
 
+  const handleUsernameChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const { value } = event.target;
+    setCreateForm((prev) => ({ ...prev, username: value }));
+  };
+
+  const handlePasswordChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const { value } = event.target;
+    setCreateForm((prev) => ({ ...prev, password: value }));
+  };
+
+  const handleDisplayNameChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const { value } = event.target;
+    setCreateForm((prev) => ({ ...prev, display_name: value }));
+  };
+
+  const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setCreateForm((prev) => ({ ...prev, email: value }));
+  };
+
+  const handleReportsToChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const { value } = event.target;
+    setCreateForm((prev) => ({
+      ...prev,
+      reports_to_id: value ? Number(value) : null,
+    }));
+  };
+
   const handleSubmitCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateLoading(true);
@@ -391,13 +427,8 @@ export default function AdminUsersPage() {
                   <input
                     type="text"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.username}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        username: event.currentTarget.value,
-                      }))
-                    }
+                    value={createForm.username ?? ""}
+                    onChange={handleUsernameChange}
                     required
                   />
                 </div>
@@ -408,13 +439,8 @@ export default function AdminUsersPage() {
                   <input
                     type="password"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.password}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        password: event.currentTarget.value,
-                      }))
-                    }
+                    value={createForm.password ?? ""}
+                    onChange={handlePasswordChange}
                     required
                   />
                 </div>
@@ -425,13 +451,8 @@ export default function AdminUsersPage() {
                   <input
                     type="text"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.display_name}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        display_name: event.currentTarget.value,
-                      }))
-                    }
+                    value={createForm.display_name ?? ""}
+                    onChange={handleDisplayNameChange}
                     required
                   />
                 </div>
@@ -442,13 +463,8 @@ export default function AdminUsersPage() {
                   <input
                     type="email"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.email}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        email: event.currentTarget.value,
-                      }))
-                    }
+                    value={createForm.email ?? ""}
+                    onChange={handleEmailChange}
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -462,13 +478,7 @@ export default function AdminUsersPage() {
                         ? ""
                         : String(createForm.reports_to_id)
                     }
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        reports_to_id: value ? Number(value) : null,
-                      }));
-                    }}
+                    onChange={handleReportsToChange}
                   >
                     <option value="">— بدون مدیر —</option>
                     {users.map((user) => (

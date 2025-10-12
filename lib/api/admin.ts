@@ -22,10 +22,7 @@ const ensureLeadingSlash = (value: string) =>
 function buildAdminPath(path: string): string {
   const base = basePrefix();
   const suffix = ensureLeadingSlash(path);
-  if (base.endsWith("/admin")) {
-    return suffix;
-  }
-  return `/admin${suffix}`;
+  return `/auth/admin${suffix}`;
 }
 
 function buildAuthPath(path: string): string {
