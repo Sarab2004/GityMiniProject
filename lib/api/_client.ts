@@ -102,7 +102,53 @@ async function parseJson(response: Response): Promise<unknown> {
   }
 }
 
+class ApiError extends Error {
+  status: number;
+  data: unknown;
+  messages: string[];
+
+  constructor(status: number, message: string, data: unknown, messages: string[]) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+    this.messages = messages;
+  }
+}
+
+function flattenMessages(input: unknown, acc: string[] = [], seen = new Set<unknown>()): string[] {
+  if (input === null || input === undefined) {
+    return acc;
+  }
+  if (seen.has(input)) {
+    return acc;
+  }
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (trimmed.length > 0) {
+      acc.push(trimmed);
+    }
+    return acc;
+  }
+  if (typeof input === "number" || typeof input === "boolean") {
+    acc.push(String(input));
+    return acc;
+  }
+  if (Array.isArray(input)) {
+    input.forEach((item) => flattenMessages(item, acc, seen));
+    return acc;
+  }
+  if (typeof input === "object") {
+    seen.add(input);
+    Object.values(input as Record<string, unknown>).forEach((value) => {
+      flattenMessages(value, acc, seen);
+    });
+  }
+  return acc;
+}
+
 async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+  const upperMethod = method.toUpperCase();
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
@@ -119,10 +165,15 @@ async function request<T>(method: string, path: string, options: RequestOptions 
     if (csrfToken) {
       headers["X-CSRFToken"] = csrfToken;
     }
+  } else if (["POST", "PUT", "PATCH", "DELETE"].includes(upperMethod)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers["X-CSRFToken"] = csrfToken;
+    }
   }
 
   const response = await fetch(buildUrl(path, options.params), {
-    method,
+    method: upperMethod,
     headers,
     body,
     credentials: "include",
@@ -131,11 +182,11 @@ async function request<T>(method: string, path: string, options: RequestOptions 
   const parsed = (await parseJson(response)) as T | undefined;
 
   if (!response.ok) {
-    const detail =
-      typeof parsed === "object" && parsed !== null && "detail" in parsed
-        ? String((parsed as Record<string, unknown>).detail)
-        : response.statusText || "Request failed";
-    throw new Error(`HTTP ${response.status}: ${detail}`);
+    const messages = flattenMessages(parsed);
+    const fallback = response.statusText || "Request failed";
+    const message =
+      messages.length > 0 ? messages[0] : `HTTP ${response.status}: ${fallback}`;
+    throw new ApiError(response.status, message, parsed, messages);
   }
 
   return parsed as T;
@@ -160,3 +211,5 @@ export function apiPut<T>(path: string, body?: unknown): Promise<T> {
 export function apiDelete<T>(path: string, params?: QueryParams): Promise<T> {
   return request<T>("DELETE", path, { params });
 }
+
+export { ApiError };

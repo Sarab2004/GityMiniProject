@@ -81,9 +81,6 @@ export async function updateAdminUser(
   payload: UpdateAdminUserPayload,
 ): Promise<AdminUser> {
   const body: Record<string, unknown> = {};
-  if (payload.display_name !== undefined) {
-    body.display_name = payload.display_name;
-  }
   if (payload.permissions !== undefined) {
     body.permissions = payload.permissions;
   }

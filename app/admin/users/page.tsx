@@ -8,6 +8,7 @@ import {
   getRoleCatalog,
   updateAdminUser,
 } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/_client";
 import type {
   AdminUser,
   PermissionEntry,
@@ -136,19 +137,25 @@ export default function AdminUsersPage() {
 
   const createParentOptions = useMemo(() => {
     if (!selectedCreateRole) {
-      return users;
+      return [];
     }
-    if (!selectedCreateRole.parent_slug) {
+    const parentSlug = selectedCreateRole.parent_slug;
+    if (!parentSlug) {
       return [];
     }
     return users.filter(
-      (user) => user.role?.slug === selectedCreateRole.parent_slug,
+      (user) =>
+        user.is_active &&
+        user.role?.slug === parentSlug,
     );
   }, [users, selectedCreateRole]);
 
   const requiresParentSelection = Boolean(selectedCreateRole?.parent_slug);
   const createParentDisabled =
-    rolesLoading || !selectedCreateRole || !requiresParentSelection;
+    rolesLoading ||
+    !selectedCreateRole ||
+    !requiresParentSelection ||
+    createParentOptions.length === 0;
 
   useEffect(() => {
     if (!selectedCreateRole || !selectedCreateRole.parent_slug) {
@@ -156,6 +163,18 @@ export default function AdminUsersPage() {
         setCreateForm((prev) => ({ ...prev, reports_to_id: null }));
       }
       return;
+    }
+    if (createParentOptions.length === 0) {
+      if (createForm.reports_to_id !== null) {
+        setCreateForm((prev) => ({ ...prev, reports_to_id: null }));
+      }
+      return;
+    }
+    if (
+      createParentOptions.length > 0 &&
+      !createParentOptions.some((option) => option.id === createForm.reports_to_id)
+    ) {
+      setCreateForm((prev) => ({ ...prev, reports_to_id: null }));
     }
     if (
       createParentOptions.length === 1 &&
@@ -177,6 +196,12 @@ export default function AdminUsersPage() {
     createForm.reports_to_id === null ? "" : String(createForm.reports_to_id);
 
   const formatError = (err: unknown, fallback: string) => {
+    if (err instanceof ApiError) {
+      if (err.messages.length > 0) {
+        return err.messages.join(" / ");
+      }
+      return err.message;
+    }
     if (err instanceof Error) {
       return err.message;
     }
@@ -271,8 +296,55 @@ export default function AdminUsersPage() {
 
   const handleSubmitCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setCreateLoading(true);
     setCreateError(null);
+
+    const selectedRole = createForm.role_slug
+      ? roleLookup.get(createForm.role_slug) ?? null
+      : null;
+
+    if (!selectedRole) {
+      setCreateError("برای افزودن کاربر باید یک نقش معتبر انتخاب کنید.");
+      return;
+    }
+
+    if (selectedRole.is_unique && assignedUniqueRoles.has(selectedRole.slug)) {
+      const uniqueMessage =
+        selectedRole.slug === "hse_manager"
+          ? "مدیر HSE فقط یک بار مجاز است."
+          : "این نقش تنها برای یک کاربر قابل تخصیص است.";
+      setCreateError(uniqueMessage);
+      return;
+    }
+
+    if (selectedRole.parent_slug) {
+      if (createParentOptions.length === 0) {
+        const expectedLabel =
+          roleLookup.get(selectedRole.parent_slug)?.label ??
+          selectedRole.parent_slug;
+        setCreateError(
+          `ابتدا باید مدیری با نقش «${expectedLabel}» در ساختار وجود داشته باشد.`,
+        );
+        return;
+      }
+      if (
+        createForm.reports_to_id === null ||
+        !createParentOptions.some(
+          (candidate) => candidate.id === createForm.reports_to_id,
+        )
+      ) {
+        const expectedLabel =
+          roleLookup.get(selectedRole.parent_slug)?.label ??
+          selectedRole.parent_slug;
+        setCreateError(
+          `لطفاً مدیری با نقش «${expectedLabel}» را برای این کاربر انتخاب کنید.`,
+        );
+        return;
+      }
+    } else if (createForm.reports_to_id !== null) {
+      setCreateForm((prev) => ({ ...prev, reports_to_id: null }));
+    }
+
+    setCreateLoading(true);
     try {
       await createAdminUser({
         username: createForm.username.trim(),
@@ -285,7 +357,7 @@ export default function AdminUsersPage() {
       setIsCreateOpen(false);
       await loadUsers();
     } catch (err) {
-      setCreateError(formatError(err, "ایجاد کاربر جدید با خطا مواجه شد."));
+      setCreateError(formatError(err, "افزودن کاربر جدید با خطا مواجه شد."));
     } finally {
       setCreateLoading(false);
     }
@@ -350,8 +422,7 @@ export default function AdminUsersPage() {
     !createForm.role_slug ||
     missingRequiredParent ||
     createLoading;
-  const editDisabled =
-    editLoading || editUser === null || !editRoleSlug;
+  const editDisabled = editLoading || editUser === null || !editRoleSlug;
 
   return (
     <section className="space-y-6">
@@ -403,27 +474,27 @@ export default function AdminUsersPage() {
           </div>
         ) : null}
 
-        <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  Display Name
+                  نام نمایشی
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  Role
+                  نقش
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  Username
+                  نام کاربری
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  Active?
+                  وضعیت
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  Manager
+                  مدیر
                 </th>
                 <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
-                  Actions
+                  اقدامات
                 </th>
               </tr>
             </thead>
@@ -509,9 +580,9 @@ export default function AdminUsersPage() {
       </div>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-3xl rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
+          <div className="w-full max-w-[95vw] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
                   کاربر جدید
@@ -529,11 +600,11 @@ export default function AdminUsersPage() {
                 بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitCreate} className="px-6 py-6">
+            <form onSubmit={handleSubmitCreate} className="px-4 py-4 sm:px-6 sm:py-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Username *
+                    نام کاربری *
                   </label>
                   <input
                     type="text"
@@ -670,21 +741,21 @@ export default function AdminUsersPage() {
                 </div>
               ) : null}
 
-              <div className="mt-6 flex items-center justify-end gap-2">
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   disabled={createLoading}
                 >
                   انصراف
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
                   disabled={createDisabled}
                 >
-                  {createLoading ? "در حال ذخیره..." : "ایجاد کاربر"}
+                  {createLoading ? "در حال ذخیره..." : "افزودن کاربر"}
                 </button>
               </div>
             </form>
@@ -693,15 +764,15 @@ export default function AdminUsersPage() {
       ) : null}
 
       {editUser ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-3xl rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
+          <div className="w-full max-w-[95vw] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
                   ویرایش کاربر
                 </h3>
                 <p className="text-sm text-slate-600">
-                  فقط نام نمایشی و مجوزها قابل ویرایش هستند.
+                  نقش و مجوزها را می‌توانید تغییر دهید؛ نام نمایشی به‌صورت خودکار بر اساس نقش و مدیر تعیین می‌شود.
                 </p>
               </div>
               <button
@@ -716,7 +787,7 @@ export default function AdminUsersPage() {
                 بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitEdit} className="px-6 py-6">
+            <form onSubmit={handleSubmitEdit} className="px-4 py-4 sm:px-6 sm:py-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700">
@@ -749,6 +820,9 @@ export default function AdminUsersPage() {
                     <p className="text-sm text-rose-600">{rolesError}</p>
                   ) : null}
                 </div>
+                <p className="text-xs text-slate-500">
+                  با ذخیره نقش جدید، نام نمایشی به‌صورت خودکار بر اساس ساختار سازمانی بازتولید می‌شود.
+                </p>
               </div>
 
               <div className="mt-6 space-y-3">
@@ -772,21 +846,21 @@ export default function AdminUsersPage() {
                 </div>
               ) : null}
 
-              <div className="mt-6 flex items-center justify-end gap-2">
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setEditUser(null);
                     setEditRoleSlug("");
                   }}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   disabled={editLoading}
                 >
                   انصراف
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
                   disabled={editDisabled}
                 >
                   {editLoading ? "در حال ذخیره..." : "ذخیره تغییرات"}

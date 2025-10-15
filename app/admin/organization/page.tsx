@@ -14,6 +14,7 @@ import {
   moveUser,
   renameUser,
 } from "@/lib/api/admin";
+import { ApiError } from "@/lib/api/_client";
 
 const RESOURCES: Resource[] = ["forms", "actions", "archive"];
 
@@ -25,7 +26,7 @@ interface CreateChildState {
   permissions: PermissionEntry[];
 }
 
-function defaultPermissions(): PermissionEntry[] {
+function defaultمجوزها(): PermissionEntry[] {
   return RESOURCES.map((resource) => ({
     resource,
     can_create: false,
@@ -69,7 +70,7 @@ export default function AdminOrganizationPage() {
     password: "",
     role_slug: "",
     email: "",
-    permissions: defaultPermissions(),
+    permissions: defaultمجوزها(),
   });
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -101,6 +102,19 @@ export default function AdminOrganizationPage() {
     [treeData],
   );
 
+  const formatError = (err: unknown, fallback: string): string => {
+    if (err instanceof ApiError) {
+      if (err.messages.length > 0) {
+        return err.messages.join(" / ");
+      }
+      return err.message;
+    }
+    if (err instanceof Error) {
+      return err.message;
+    }
+    return fallback;
+  };
+
   const fetchTree = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -108,11 +122,7 @@ export default function AdminOrganizationPage() {
       const data = await getOrgTree();
       setTreeData(ensureTreeArray(data));
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load organization tree.",
-      );
+      setError(formatError(err, "دریافت ساختار سازمانی با خطا مواجه شد."));
     } finally {
       setLoading(false);
     }
@@ -130,9 +140,7 @@ export default function AdminOrganizationPage() {
         setRoles(data);
         setRolesError(null);
       } catch (err) {
-        setRolesError(
-          err instanceof Error ? err.message : "Failed to load role catalog.",
-        );
+        setRolesError(formatError(err, "دریافت فهرست نقش‌ها با خطا مواجه شد."));
       } finally {
         setRolesLoading(false);
       }
@@ -167,11 +175,19 @@ export default function AdminOrganizationPage() {
 
   const addAllowedRoles = useMemo(() => {
     if (!addParentNode) {
-      return roles;
+      return roles.filter(
+        (role) =>
+          role.parent_slug === null &&
+          (!role.is_unique || !assignedUniqueRoles.has(role.slug)),
+      );
     }
     const parentSlug = addParentNode.role_slug ?? null;
-    return roles.filter((role) => role.parent_slug === parentSlug);
-  }, [roles, addParentNode]);
+    return roles.filter(
+      (role) =>
+        role.parent_slug === parentSlug &&
+        (!role.is_unique || !assignedUniqueRoles.has(role.slug)),
+    );
+  }, [roles, addParentNode, assignedUniqueRoles]);
 
   const noAddRolesAvailable =
     Boolean(addParentNode) && addAllowedRoles.length === 0;
@@ -205,7 +221,7 @@ export default function AdminOrganizationPage() {
       password: "",
       role_slug: "",
       email: "",
-      permissions: defaultPermissions(),
+      permissions: defaultمجوزها(),
     });
     setAddError(null);
   };
@@ -234,7 +250,7 @@ export default function AdminOrganizationPage() {
     setAddForm((prev) => ({ ...prev, email: event.target.value }));
   };
 
-const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
+const handleAddمجوزهاChange = (permissions: PermissionEntry[]) => {
   setAddForm((prev) => ({ ...prev, permissions }));
 };
 
@@ -264,6 +280,38 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
     if (!addParentNode) return;
     setAddLoading(true);
     setAddError(null);
+    const selectedRole = addForm.role_slug
+      ? roleLookup.get(addForm.role_slug) ?? null
+      : null;
+    if (!selectedRole) {
+      setAddLoading(false);
+      setAddError("ابتدا نقش معتبر برای کاربر انتخاب کنید.");
+      return;
+    }
+    if (selectedRole.is_unique && assignedUniqueRoles.has(selectedRole.slug)) {
+      const uniqueMessage =
+        selectedRole.slug === "hse_manager"
+          ? "مدیر HSE فقط یک بار مجاز است."
+          : "این نقش تنها برای یک کاربر قابل تخصیص است.";
+      setAddLoading(false);
+      setAddError(uniqueMessage);
+      return;
+    }
+    const parentSlug = addParentNode.role_slug ?? null;
+    if ((selectedRole.parent_slug ?? null) !== parentSlug) {
+      setAddLoading(false);
+      const expectedParentLabel =
+        selectedRole.parent_slug &&
+        (roleLookup.get(selectedRole.parent_slug)?.label ??
+          selectedRole.parent_slug);
+      setAddError(
+        expectedParentLabel
+          ? `این نقش باید زیر مدیر با نقش «${expectedParentLabel}» قرار بگیرد.`
+          : "این نقش در سطح ریشه قرار می‌گیرد و نباید مدیر انتخاب شود.",
+      );
+      return;
+    }
+
     try {
       await createChildUser({
         parent_id: addParentNode.id,
@@ -276,9 +324,7 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       setAddParentNode(null);
       await fetchTree();
     } catch (err) {
-      setAddError(
-        err instanceof Error ? err.message : "Failed to create subordinate.",
-      );
+      setAddError(formatError(err, "ایجاد کاربر زیرمجموعه با خطا روبه‌رو شد."));
     } finally {
       setAddLoading(false);
     }
@@ -363,9 +409,7 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       setRenameNodeState(null);
       await fetchTree();
     } catch (err) {
-      setRenameError(
-        err instanceof Error ? err.message : "Failed to rename node.",
-      );
+      setRenameError(formatError(err, "تغییر نام گره با خطا روبه‌رو شد."));
     } finally {
       setRenameLoading(false);
     }
@@ -382,14 +426,34 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
     if (!moveNodeState) return;
     setMoveLoading(true);
     setMoveError(null);
+    const expectedParent = moveExpectedParentSlug;
+    if (expectedParent !== null && moveParentId === null) {
+      const expectedLabel =
+        moveParentRoleDefinition?.label ?? expectedParent;
+      setMoveLoading(false);
+      setMoveError(
+        `لطفاً مدیری با نقش «${expectedLabel}» را انتخاب کنید.`,
+      );
+      return;
+    }
+    if (
+      moveParentId !== null &&
+      !moveAllowedParents.some((node) => node.id === moveParentId)
+    ) {
+      const expectedLabel =
+        moveParentRoleDefinition?.label ?? expectedParent;
+      setMoveLoading(false);
+      setMoveError(
+        `مدیر انتخاب‌شده قابل قبول نیست. نقش مجاز: «${expectedLabel}».`,
+      );
+      return;
+    }
     try {
       await moveUser(moveNodeState.id, moveParentId);
       setMoveNodeState(null);
       await fetchTree();
     } catch (err) {
-      setMoveError(
-        err instanceof Error ? err.message : "Failed to move node.",
-      );
+      setMoveError(formatError(err, "جابجایی کاربر با خطا روبه‌رو شد."));
     } finally {
       setMoveLoading(false);
     }
@@ -410,9 +474,7 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       setDeleteNodeState(null);
       await fetchTree();
     } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : "Failed to delete node.",
-      );
+      setDeleteError(formatError(err, "حذف کاربر از ساختار سازمانی با خطا مواجه شد."));
     } finally {
       setDeleteLoading(false);
     }
@@ -432,11 +494,10 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">
-            Organization Structure
+            ساختار سازمانی
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Browse the hierarchy and manage subordinates, renames, moves, and
-            deletions.
+            ساختار سازمانی را مشاهده و کاربران را مدیریت کنید.
           </p>
         </div>
         <button
@@ -452,7 +513,7 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         {loading ? (
           <div className="flex h-40 items-center justify-center text-sm text-slate-500">
-            Loading organization tree...
+            در حال بارگذاری ساختار سازمانی...
           </div>
         ) : error ? (
           <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -460,7 +521,7 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
           </div>
         ) : treeData.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-sm text-slate-500">
-            No nodes found. Create users first to populate the hierarchy.
+            هیچ گره‌ای یافت نشد؛ ابتدا کاربرانی ایجاد کنید.
           </div>
         ) : (
           <OrgTree
@@ -475,12 +536,12 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       </div>
 
       {addParentNode ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-3xl rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
+          <div className="w-full max-w-[95vw] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
-                  Add Subordinate
+                  افزودن زیرمجموعه
                 </h3>
                 <p className="text-sm text-slate-600">
                   Parent node:&nbsp;
@@ -495,10 +556,10 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 className="text-sm text-slate-500 hover:text-slate-700"
                 disabled={addLoading}
               >
-                Close
+                بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitAddChild} className="px-6 py-6">
+            <form onSubmit={handleSubmitAddChild} className="px-4 py-4 sm:px-6 sm:py-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
@@ -591,15 +652,15 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-slate-800">
-                    Initial Permissions
+                    Initial مجوزها
                   </h4>
                   <span className="text-xs text-slate-500">
-                    Toggle CRUD rights for each resource.
+                    دسترسی‌های هر منبع را تنظیم کنید.
                   </span>
                 </div>
                 <PermissionMatrix
                   value={addForm.permissions}
-                  onChange={handleAddPermissionsChange}
+                  onChange={handleAddمجوزهاChange}
                 />
               </div>
 
@@ -613,17 +674,17 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 <button
                   type="button"
                   onClick={() => setAddParentNode(null)}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   disabled={addLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
                   disabled={addDisabled}
                 >
-                  {addLoading ? "Saving..." : "Create subordinate"}
+                  {addLoading ? "در حال ذخیره..." : "Create subordinate"}
                 </button>
               </div>
             </form>
@@ -632,9 +693,9 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       ) : null}
 
       {renameNodeState ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
           <div className="w-full max-w-md rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <h3 className="text-lg font-semibold text-slate-900">
                 Rename Node
               </h3>
@@ -644,10 +705,10 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 className="text-sm text-slate-500 hover:text-slate-700"
                 disabled={renameLoading}
               >
-                Close
+                بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitRename} className="space-y-4 px-6 py-6">
+            <form onSubmit={handleSubmitRename} className="space-y-4 px-4 py-4 sm:px-6 sm:py-6">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">
                   Display Name *
@@ -671,17 +732,17 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 <button
                   type="button"
                   onClick={() => setRenameNodeState(null)}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   disabled={renameLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
                   disabled={renameDisabled}
                 >
-                  {renameLoading ? "Saving..." : "Save"}
+                  {renameLoading ? "در حال ذخیره..." : "ذخیره"}
                 </button>
               </div>
             </form>
@@ -690,9 +751,9 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
       ) : null}
 
       {moveNodeState ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
           <div className="w-full max-w-md rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <h3 className="text-lg font-semibold text-slate-900">
                 Move Node
               </h3>
@@ -702,13 +763,13 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 className="text-sm text-slate-500 hover:text-slate-700"
                 disabled={moveLoading}
               >
-                Close
+                بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitMove} className="space-y-4 px-6 py-6">
+            <form onSubmit={handleSubmitMove} className="space-y-4 px-4 py-4 sm:px-6 sm:py-6">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">
-                  New parent
+                  مدیر جدید
                 </label>
                 <select
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
@@ -717,10 +778,10 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 >
                   <option value="">
                     {moveExpectedParentSlug === null
-                      ? "No parent (root)"
+                      ? "بدون مدیر (سطح ریشه)"
                       : moveNoParentsAvailable
-                      ? "No eligible parent available"
-                      : "Select parent"}
+                      ? "مدیر سازگار موجود نیست"
+                      : "انتخاب مدیر"}
                   </option>
                   {moveAllowedParents.map((node) => (
                     <option
@@ -741,13 +802,13 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
               ) : (
                 <p className="text-xs text-slate-500">
                   {moveExpectedParentSlug === null
-                    ? "This role is defined as a root-level position. Choose the root option to detach it from any manager."
+                    ? "این نقش در سطح ریشه تعریف شده است؛ برای جدا کردن از هر مدیری، گزینه بدون مدیر را انتخاب کنید."
                     : moveNoParentsAvailable
-                    ? "No eligible parent with the required role exists yet. Create the parent first, then retry."
-                    : `Only nodes with role ${
+                    ? "هنوز مدیری با نقش موردنیاز ایجاد نشده است. ابتدا مدیر مربوطه را بسازید و سپس دوباره تلاش کنید."
+                    : `فقط کاربرانی با نقش «${
                         moveParentRoleDefinition?.label ??
                         moveExpectedParentSlug
-                      } can be selected as the parent.`}
+                      }» می‌توانند به‌عنوان مدیر انتخاب شوند.`}
                 </p>
               )}
 
@@ -755,17 +816,17 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 <button
                   type="button"
                   onClick={() => setMoveNodeState(null)}
-                  className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   disabled={moveLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
                   disabled={moveSubmitDisabled}
                 >
-                  {moveLoading ? "Saving..." : "Save"}
+                  {moveLoading ? "در حال ذخیره..." : "ذخیره"}
                 </button>
               </div>
             </form>
@@ -775,8 +836,8 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
 
       <ConfirmDialog
         open={Boolean(deleteNodeState)}
-        title="Delete Node"
-        description="Soft delete will deactivate the user. Enable force delete to remove the node even if it has active children."
+        title="حذف کاربر سازمانی"
+        description="حذف نرم کاربر را غیرفعال می‌کند. برای حذف کامل حتی با زیرمجموعه، گزینه حذف قطعی را فعال کنید."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         loading={deleteLoading}
@@ -804,7 +865,7 @@ const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
                 onChange={handleDeleteForceChange}
                 disabled={deleteLoading}
               />
-              Force delete (remove even if children exist)
+              حذف قطعی (حتی در صورت وجود زیرمجموعه)
             </label>
             {deleteError ? (
               <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">

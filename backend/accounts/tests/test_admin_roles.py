@@ -55,7 +55,7 @@ class AdminRoleAssignmentTests(TestCase):
         )
         self.assertEqual(second_manager.status_code, 400)
         self.assertIn("role_slug", second_manager.data)
-        self.assertIn("HSE Manager already exists", second_manager.data["role_slug"][0])
+        self.assertIn("مدیر HSE فقط یک بار مجاز است.", second_manager.data["role_slug"][0])
 
     def test_display_name_scoped_by_manager(self):
         ceo_response = self._create_user("ceo_root", "ceo")

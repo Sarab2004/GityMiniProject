@@ -131,11 +131,10 @@ def ensure_role_available(
         qs = qs.exclude(user_id=exclude_user_id)
 
     if qs.exists():
-        message = (
-            "HSE Manager already exists."
-            if role.slug == "hse_manager"
-            else "This role can only be assigned to one user."
-        )
+        if role.slug == "hse_manager":
+            message = "مدیر HSE فقط یک بار مجاز است."
+        else:
+            message = "این نقش تنها برای یک کاربر قابل تخصیص است."
         raise ValidationError({"role": message})
 
 
