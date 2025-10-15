@@ -4,7 +4,7 @@ from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from accounts.permissions import HasResourcePermission
+from accounts.permissions import HasResourcePermission, SimpleArchivePermission
 from ..models import ActionForm
 from ..serializers.actions import (
     ActionEffectivenessSerializer,
@@ -35,7 +35,7 @@ class ActionFormViewSet(AuditModelViewSet):
     serializer_class = ActionFormSerializer
     filterset_class = ActionFormFilter
     search_fields = ["indicator", "requester_name", "nonconformity_or_change_desc"]
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [SimpleArchivePermission]
     required_resource = "forms"
     required_action = "create"
 

@@ -47,8 +47,8 @@ export interface CreateAdminUserPayload {
   role_slug: string;
   email?: string;
   reports_to_id?: number | null;
+  simple_permissions: SimplePermissions;
   permissions?: PermissionEntry[];
-  simple_permissions?: SimplePermissions;
 }
 
 export async function createAdminUser(
@@ -66,9 +66,8 @@ export async function createAdminUser(
   if (payload.reports_to_id !== undefined) {
     body.reports_to_id = payload.reports_to_id;
   }
-  if (payload.simple_permissions !== undefined) {
-    body.simple_permissions = payload.simple_permissions;
-  } else if (payload.permissions !== undefined) {
+  body.simple_permissions = payload.simple_permissions;
+  if (payload.permissions !== undefined) {
     body.permissions = payload.permissions;
   }
 
@@ -77,8 +76,8 @@ export async function createAdminUser(
 
 export type UpdateAdminUserPayload = Partial<{
   role_slug: string;
-  permissions: PermissionEntry[];
   simple_permissions: SimplePermissions;
+  permissions: PermissionEntry[];
 }>;
 
 export async function updateAdminUser(
@@ -86,15 +85,14 @@ export async function updateAdminUser(
   payload: UpdateAdminUserPayload,
 ): Promise<AdminUser> {
   const body: Record<string, unknown> = {};
-  if (payload.permissions !== undefined) {
-    body.permissions = payload.permissions;
-  }
-
   if (payload.role_slug !== undefined) {
     body.role_slug = payload.role_slug;
   }
   if (payload.simple_permissions !== undefined) {
     body.simple_permissions = payload.simple_permissions;
+  }
+  if (payload.permissions !== undefined) {
+    body.permissions = payload.permissions;
   }
 
   return apiPatch<AdminUser>(buildAdminPath(`/users/${id}/`), body);

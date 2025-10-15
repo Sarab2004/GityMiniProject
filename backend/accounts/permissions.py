@@ -52,3 +52,50 @@ class HasResourcePermission(BasePermission):
 
     def has_object_permission(self, request, view, obj: Any) -> bool:  # type: ignore[override]
         return self.has_permission(request, view)
+
+
+class SimpleArchivePermission(BasePermission):
+    """
+    Permission backend for archive-related endpoints driven by the four simple flags.
+
+    Mapping:
+        - list/retrieve (safe methods)        → can_view_archive
+        - update / partial_update (PUT/PATCH) → can_view_archive + can_edit_archive_entries
+        - destroy (DELETE)                    → can_view_archive + can_delete_archive_entries
+    """
+
+    message = "دسترسی به آرشیو برای شما فعال نیست."
+
+    def has_permission(self, request, view) -> bool:  # type: ignore[override]
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+
+        if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+            return True
+
+        method = request.method.upper()
+
+        if method not in {"GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"}:
+            # Other verbs (e.g. POST) are handled by dedicated permissions elsewhere.
+            return True
+
+        try:
+            entry = (
+                PermissionEntry.objects.select_related(None)
+                .only("can_read", "can_update", "can_delete")
+                .get(user=user, resource="archive")
+            )
+        except PermissionEntry.DoesNotExist:
+            entry = None
+
+        if method in {"GET", "HEAD", "OPTIONS"}:
+            return bool(entry and entry.can_read)
+
+        if method in {"PUT", "PATCH"}:
+            return bool(entry and entry.can_read and entry.can_update)
+
+        if method == "DELETE":
+            return bool(entry and entry.can_read and entry.can_delete)
+
+        return False

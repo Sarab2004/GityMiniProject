@@ -8,6 +8,7 @@ from .views.teams import SafetyTeamViewSet
 from .views.tracking import ActionTrackingViewSet, ChangeLogViewSet, ToolboxMeetingViewSet
 from .views.completed import CompletedActionsView, CompletedRisksView
 from .views.archive import ArchiveViewSet
+from .views.form_entries import FormEntryView
 
 router = DefaultRouter()
 router.register(r"projects", ProjectViewSet, basename="projects")
@@ -25,6 +26,7 @@ router.register(r"archive", ArchiveViewSet, basename="archive")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("forms/<str:form_code>/entries/<int:pk>/", FormEntryView.as_view(), name="form-entry"),
     path("completed/risks", CompletedRisksView.as_view(), name="completed-risks"),
     path("completed/actions", CompletedActionsView.as_view(), name="completed-actions"),
 ]

@@ -12,9 +12,14 @@ import { ApiError } from "@/lib/api/_client";
 import type {
   AdminUser,
   RoleCatalogEntry,
+  SimplePermissionKey,
   SimplePermissions,
 } from "@/types/admin";
 import ConfirmDialog from "@/app/ui/admin/ConfirmDialog";
+import {
+  defaultSimplePermissions,
+  mapPermissionsToSimple,
+} from "@/lib/permissions/simple";
 
 interface CreateFormState {
   username: string;
@@ -24,71 +29,140 @@ interface CreateFormState {
   reports_to_id: number | null;
 }
 
-type SimplePermissionKey = keyof SimplePermissions;
+const ARCHIVE_DEPENDENCY_MESSAGE = "برای فعال‌سازی ویرایش یا حذف آرشیو، مشاهدهٔ آرشیو باید روشن باشد.";
 
-const defaultSimplePermissions = (): SimplePermissions => ({
-  can_submit_forms: false,
-  can_view_archive: false,
-  can_edit_archive_entries: false,
-  can_delete_archive_entries: false,
-});
-
-const SIMPLE_PERMISSION_KEYS: SimplePermissionKey[] = [
+const SIMPLE_PERMISSION_ORDER: SimplePermissionKey[] = [
   "can_submit_forms",
   "can_view_archive",
   "can_edit_archive_entries",
   "can_delete_archive_entries",
 ];
 
-const ARCHIVE_DEPENDENCY_MESSAGE = 'برای ویرایش/حذف رکوردها، دسترسی آرشیو باید فعال باشد.';
+const SIMPLE_PERMISSION_META: Record<
+  SimplePermissionKey,
+  { label: string; description: string; badge: string }
+> = {
+  can_submit_forms: {
+    label: "دسترسی ثبت فرم‌ها",
+    description: "امکان ارسال و ثبت هر شش فرم فعال پنل.",
+    badge: "ثبت",
+  },
+  can_view_archive: {
+    label: "مشاهده آرشیو",
+    description: "نمایش همه رکوردهای آرشیو و گزارش‌های بایگانی.",
+    badge: "آرشیو",
+  },
+  can_edit_archive_entries: {
+    label: "ویرایش آرشیو",
+    description: "امکان ویرایش رکوردهای ثبت‌شده در آرشیو.",
+    badge: "ویرایش",
+  },
+  can_delete_archive_entries: {
+    label: "حذف آرشیو",
+    description: "اجازهٔ حذف رکوردهای آرشیو پس از تأیید.",
+    badge: "حذف",
+  },
+};
 
-const SIMPLE_PERMISSION_META
-const applyArchiveDependency = (prev: SimplePermissions, key: SimplePermissionKey, value: boolean): SimplePermissions => {
+const applyArchiveDependency = (
+  prev: SimplePermissions,
+  key: SimplePermissionKey,
+  value: boolean,
+): SimplePermissions => {
   const next = { ...prev, [key]: value };
   if (key === "can_view_archive" && !value) {
     next.can_edit_archive_entries = false;
     next.can_delete_archive_entries = false;
   }
-  if ((key === "can_edit_archive_entries" || key === "can_delete_archive_entries") && value) {
+  if (
+    (key === "can_edit_archive_entries" || key === "can_delete_archive_entries") &&
+    value
+  ) {
     next.can_view_archive = true;
   }
   return next;
 };
 
 const validateSimplePermissions = (simple: SimplePermissions): string | null => {
-  if ((simple.can_edit_archive_entries || simple.can_delete_archive_entries) && !simple.can_view_archive) {
+  if (
+    (simple.can_edit_archive_entries || simple.can_delete_archive_entries) &&
+    !simple.can_view_archive
+  ) {
     return ARCHIVE_DEPENDENCY_MESSAGE;
   }
   return null;
 };
 
-const extractSimplePermissions = (user: AdminUser | null | undefined): SimplePermissions => {
+const extractSimplePermissions = (
+  user: AdminUser | null | undefined,
+): SimplePermissions => {
   if (user?.simple_permissions) {
     return { ...user.simple_permissions };
   }
+  if (user?.permissions?.length) {
+    return mapPermissionsToSimple(user.permissions);
+  }
   return defaultSimplePermissions();
 };
-: Record<
-  SimplePermissionKey,
-  { label: string; description?: string }
-> = {
-  can_submit_forms: {
-    label: "ثبت فرم‌ها",
-    description: "اجازه‌ی ارسال شش فرم اصلی سامانه",
+
+const getPermissionBadges = (simple: SimplePermissions): Array<{
+  key: SimplePermissionKey;
+  active: boolean;
+}> => [
+  { key: "can_submit_forms", active: simple.can_submit_forms },
+  { key: "can_view_archive", active: simple.can_view_archive },
+  { key: "can_edit_archive_entries", active: simple.can_edit_archive_entries },
+  {
+    key: "can_delete_archive_entries",
+    active: simple.can_delete_archive_entries,
   },
-  can_view_archive: {
-    label: "مشاهده‌ی آرشیو",
-    description: "دسترسی به صفحه‌ی آرشیو و مشاهده‌ی سوابق",
-  },
-  can_edit_archive_entries: {
-    label: "ویرایش رکوردهای آرشیو",
-    description: "امکان بروزرسانی رکوردهای آرشیوی (نیازمند دسترسی آرشیو)",
-  },
-  can_delete_archive_entries: {
-    label: "حذف رکوردهای آرشیو",
-    description: "امکان حذف رکوردهای آرشیوی (نیازمند دسترسی آرشیو)",
-  },
-};
+];
+
+interface SimplePermissionCheckboxesProps {
+  value: SimplePermissions;
+  onChange: (value: SimplePermissions) => void;
+  disabled?: boolean;
+}
+
+function SimplePermissionCheckboxes({
+  value,
+  onChange,
+  disabled,
+}: SimplePermissionCheckboxesProps) {
+  return (
+    <div className="grid gap-3">
+      {SIMPLE_PERMISSION_ORDER.map((key) => {
+        const meta = SIMPLE_PERMISSION_META[key];
+        const checked = value[key];
+        return (
+          <label
+            key={key}
+            className="flex min-h-[44px] items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 transition hover:border-slate-300"
+            title={meta.description}
+          >
+            <input
+              type="checkbox"
+              className="mt-1 h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+              checked={checked}
+              disabled={disabled}
+              onChange={(event) =>
+                onChange(
+                  applyArchiveDependency(value, key, event.currentTarget.checked),
+                )
+              }
+            />
+            <div className="space-y-1">
+              <span className="block text-sm font-medium text-slate-800">
+                {meta.label}
+              </span>
+              <p className="text-xs text-slate-500">{meta.description}</p>
+            </div>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
 
 function useDebouncedValue<T>(value: T, delay = 400): T {
   const [debounced, setDebounced] = useState(value);
@@ -117,14 +191,14 @@ export default function AdminUsersPage() {
     reports_to_id: null,
   });
   const [createSimplePermissions, setCreateSimplePermissions] = useState(defaultSimplePermissions());
-  const [createPermissionsError, setCreatePermissionsError] = useState<string | null>(null);
+  const [createSimplePermissionsError, setCreateSimplePermissionsError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createLoading, setCreateLoading] = useState(false);
 
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [editRoleSlug, setEditRoleSlug] = useState("");
   const [editSimplePermissions, setEditSimplePermissions] = useState(defaultSimplePermissions());
-  const [editPermissionsError, setEditPermissionsError] = useState<string | null>(null);
+  const [editSimplePermissionsError, setEditSimplePermissionsError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [roles, setRoles] = useState<RoleCatalogEntry[]>([]);
@@ -190,6 +264,63 @@ export default function AdminUsersPage() {
     !requiresParentSelection ||
     createParentOptions.length === 0;
 
+  const handleCreateSimplePermissionsChange = useCallback(
+    (next: SimplePermissions) => {
+      setCreateSimplePermissions(next);
+      setCreateSimplePermissionsError(null);
+    },
+    [],
+  );
+
+  const handleEditSimplePermissionsChange = useCallback(
+    (next: SimplePermissions) => {
+      setEditSimplePermissions(next);
+      setEditSimplePermissionsError(null);
+    },
+    [],
+  );
+  async function logUsersApiRequest<T>(
+    action: string,
+    payload: unknown,
+    runner: () => Promise<T>,
+  ): Promise<T> {
+    const hasConsole =
+      typeof window !== "undefined" && typeof console !== "undefined";
+    const canGroup =
+      hasConsole &&
+      typeof console.groupCollapsed === "function" &&
+      typeof console.groupEnd === "function";
+
+    if (canGroup) {
+      console.groupCollapsed(`[Users API] ${action}`);
+    } else if (hasConsole && typeof console.log === "function") {
+      console.log(`[Users API] ${action}`);
+    }
+
+    if (hasConsole && typeof console.log === "function") {
+      console.log("payload", payload);
+    }
+
+    try {
+      const response = await runner();
+      if (hasConsole && typeof console.log === "function") {
+        console.log("response", response);
+      }
+      return response;
+    } catch (error) {
+      if (hasConsole && typeof console.error === "function") {
+        console.error("error", error);
+      }
+      throw error;
+    } finally {
+      if (canGroup) {
+        console.groupEnd();
+      }
+    }
+  }
+
+
+
   useEffect(() => {
     if (!selectedCreateRole || !selectedCreateRole.parent_slug) {
       if (createForm.reports_to_id !== null) {
@@ -245,12 +376,15 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getAdminUsers(
-        debouncedSearch.trim() ? debouncedSearch.trim() : undefined,
+      const searchValue = debouncedSearch.trim();
+      const data = await logUsersApiRequest(
+        "getAdminUsers",
+        searchValue ? { search: searchValue } : {},
+        () => getAdminUsers(searchValue || undefined),
       );
       setUsers(data);
     } catch (err) {
-      setError(formatError(err, "دریافت لیست کاربران با خطا مواجه شد."));
+      setError(formatError(err, "دریافت فهرست کاربران با خطا روبه‌رو شد."));
     } finally {
       setLoading(false);
     }
@@ -264,7 +398,7 @@ export default function AdminUsersPage() {
     const fetchRoles = async () => {
       setRolesLoading(true);
       try {
-        const data = await getRoleCatalog();
+        const data = await logUsersApiRequest("getRoleCatalog", {}, getRoleCatalog);
         setRoles(data);
         setRolesError(null);
       } catch (err) {
@@ -285,6 +419,7 @@ export default function AdminUsersPage() {
       reports_to_id: null,
     });
     setCreateSimplePermissions(defaultSimplePermissions());
+    setCreateSimplePermissionsError(null);
     setCreateError(null);
     setIsCreateOpen(true);
   };
@@ -330,7 +465,7 @@ export default function AdminUsersPage() {
   const handleSubmitCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateError(null);
-    setCreatePermissionsError(null);
+    setCreateSimplePermissionsError(null);
 
     const selectedRole = createForm.role_slug
       ? roleLookup.get(createForm.role_slug) ?? null
@@ -380,26 +515,31 @@ export default function AdminUsersPage() {
 
     const dependencyError = validateSimplePermissions(createSimplePermissions);
     if (dependencyError) {
-      setCreatePermissionsError(dependencyError);
+      setCreateSimplePermissionsError(dependencyError);
       return;
     }
 
+    const payload = {
+      username: createForm.username.trim(),
+      password: createForm.password,
+      role_slug: createForm.role_slug,
+      email: createForm.email.trim() || undefined,
+      reports_to_id: createForm.reports_to_id ?? undefined,
+      simple_permissions: createSimplePermissions,
+    };
+
     setCreateLoading(true);
     try {
-      await createAdminUser({
-        username: createForm.username.trim(),
-        password: createForm.password,
-        role_slug: createForm.role_slug,
-        email: createForm.email.trim() || undefined,
-        reports_to_id: createForm.reports_to_id ?? undefined,
-        simple_permissions: createSimplePermissions,
-      });
+      await logUsersApiRequest("createAdminUser", payload, () =>
+        createAdminUser(payload),
+      );
       setIsCreateOpen(false);
+      setCreateSimplePermissions(defaultSimplePermissions());
       await loadUsers();
     } catch (err) {
-      const message = formatError(err, "افزودن کاربر جدید با خطا مواجه شد.");
+      const message = formatError(err, "??? ????? ?? ??? ??????? ??.");
       if (message === ARCHIVE_DEPENDENCY_MESSAGE) {
-        setCreatePermissionsError(message);
+        setCreateSimplePermissionsError(message);
       } else {
         setCreateError(message);
       }
@@ -411,7 +551,8 @@ export default function AdminUsersPage() {
   const handleOpenEdit = (user: AdminUser) => {
     setEditUser(user);
     setEditRoleSlug(user.role?.slug ?? "");
-    setEditSimplePermissions(user.simple_permissions ?? defaultSimplePermissions());
+    setEditSimplePermissions(extractSimplePermissions(user));
+    setEditSimplePermissionsError(null);
     setEditError(null);
   };
 
@@ -425,18 +566,34 @@ export default function AdminUsersPage() {
   const handleSubmitEdit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editUser) return;
-    setEditLoading(true);
+
     setEditError(null);
+    setEditSimplePermissionsError(null);
+
+    const dependencyError = validateSimplePermissions(editSimplePermissions);
+    if (dependencyError) {
+      setEditSimplePermissionsError(dependencyError);
+      return;
+    }
+
+    const payload = {
+      simple_permissions: editSimplePermissions,
+      ...(editRoleSlug ? { role_slug: editRoleSlug } : {}),
+    };
+
+    setEditLoading(true);
     try {
-      await updateAdminUser(editUser.id, {
-        role_slug: editRoleSlug,
-        permissions: editPermissions,
-      });
+      await logUsersApiRequest(
+        `updateAdminUser#${editUser.id}`,
+        payload,
+        () => updateAdminUser(editUser.id, payload),
+      );
       setEditUser(null);
       setEditRoleSlug("");
+      setEditSimplePermissions(defaultSimplePermissions());
       await loadUsers();
     } catch (err) {
-      setEditError(formatError(err, "به‌روزرسانی کاربر با خطا مواجه شد."));
+      setEditError(formatError(err, "??????????? ????? ?? ??? ??????? ??."));
     } finally {
       setEditLoading(false);
     }
@@ -447,7 +604,11 @@ export default function AdminUsersPage() {
     setDeleteLoading(true);
     setDeleteError(null);
     try {
-      await deleteAdminUser(deleteUserState.id, deleteHard);
+      await logUsersApiRequest(
+        `deleteAdminUser#${deleteUserState.id}`,
+        { hard: deleteHard },
+        () => deleteAdminUser(deleteUserState.id, deleteHard),
+      );
       setDeleteUserState(null);
       setDeleteHard(false);
       await loadUsers();
@@ -522,32 +683,35 @@ export default function AdminUsersPage() {
         <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  نام نمایشی
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  نقش
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  نام کاربری
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  وضعیت
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-                  مدیر
-                </th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
-                  اقدامات
-                </th>
-              </tr>
-            </thead>
+          <tr>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+              نام کامل
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+              نقش
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+              نام کاربری
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+              دسترسی‌ها
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+              وضعیت
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+              مدیر مستقیم
+            </th>
+            <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
+              عملیات
+            </th>
+          </tr>
+        </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {loading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     در حال دریافت داده‌ها...
@@ -556,7 +720,7 @@ export default function AdminUsersPage() {
               ) : users.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     کاربری یافت نشد.
@@ -567,6 +731,8 @@ export default function AdminUsersPage() {
                   const manager = user.reports_to_id
                     ? managerLookup.get(user.reports_to_id)
                     : undefined;
+                  const simplePermissions = extractSimplePermissions(user);
+                  const activePermissionBadges = getPermissionBadges(simplePermissions).filter((badge) => badge.active);
                   return (
                     <tr key={user.id}>
                       <td className="px-4 py-3 text-sm font-medium text-slate-800">
@@ -577,6 +743,26 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {user.username}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {activePermissionBadges.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {activePermissionBadges.map((badge) => {
+                              const meta = SIMPLE_PERMISSION_META[badge.key];
+                              return (
+                                <span
+                                  key={badge.key}
+                                  className="inline-flex min-h-[24px] items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
+                                  title={meta.description}
+                                >
+                                  {meta.badge}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span
@@ -765,19 +951,23 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="mt-6 space-y-4">
+                <div className="flex flex-col gap-1">
                   <h4 className="text-sm font-semibold text-slate-800">
-                    مجوزها
+                    دسترسی‌ها
                   </h4>
-                  <span className="text-xs text-slate-500">
-                    با فعال‌کردن هر ستون، دسترسی متناسب اعطا می‌شود.
-                  </span>
+                  <p className="text-xs text-slate-500">
+                    چهار گزینهٔ زیر به‌صورت مستقیم به پرمیژن‌های جدید متصل هستند.
+                  </p>
                 </div>
-                <PermissionMatrix
-                  value={createPermissions}
-                  onChange={setCreatePermissions}
+                <SimplePermissionCheckboxes
+                  value={createSimplePermissions}
+                  onChange={handleCreateSimplePermissionsChange}
+                  disabled={createLoading}
                 />
+                {createSimplePermissionsError ? (
+                  <p className="text-sm text-rose-600">{createSimplePermissionsError}</p>
+                ) : null}
               </div>
 
               {createError ? (
@@ -870,19 +1060,23 @@ export default function AdminUsersPage() {
                 </p>
               </div>
 
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="mt-6 space-y-4">
+                <div className="flex flex-col gap-1">
                   <h4 className="text-sm font-semibold text-slate-800">
-                    مجوزها
+                    دسترسی‌ها
                   </h4>
-                  <span className="text-xs text-slate-500">
-                    تغییرات روی منابع انتخاب‌شده اعمال می‌شود.
-                  </span>
+                  <p className="text-xs text-slate-500">
+                    تغییر این گزینه‌ها هم‌زمان روی پرمیژن‌های ساده در بک‌اند اعمال می‌شود.
+                  </p>
                 </div>
-                <PermissionMatrix
-                  value={editPermissions}
-                  onChange={setEditPermissions}
+                <SimplePermissionCheckboxes
+                  value={editSimplePermissions}
+                  onChange={handleEditSimplePermissionsChange}
+                  disabled={editLoading}
                 />
+                {editSimplePermissionsError ? (
+                  <p className="text-sm text-rose-600">{editSimplePermissionsError}</p>
+                ) : null}
               </div>
 
               {editError ? (

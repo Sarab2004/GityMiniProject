@@ -1,5 +1,6 @@
+from accounts.permissions import SimpleArchivePermission
 import django_filters
-from rest_framework import status, permissions
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -22,7 +23,7 @@ class RiskRecordViewSet(AuditModelViewSet):
     serializer_class = RiskRecordSerializer
     filterset_class = RiskRecordFilter
     search_fields = ["process_title", "activity_desc"]
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [SimpleArchivePermission]
 
     @action(detail=True, methods=["post"], url_path="reeval")
     def reeval(self, request, pk=None):
