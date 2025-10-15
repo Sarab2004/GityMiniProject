@@ -1,6 +1,8 @@
 ﻿'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import { FormLayout } from '@/components/forms/FormLayout'
 import { FormSection } from '@/components/ui/FormSection'
 import { TextInput } from '@/components/ui/TextInput'
@@ -18,6 +20,14 @@ import {
     submitExecutionReport,
     type Project,
 } from '@/lib/hse'
+import { ApiError } from '@/lib/api/_client'
+import { getEntry, updateEntry } from '@/lib/api/formEntry'
+import { usePermissions } from '@/hooks/usePermissions'
+import {
+    FR0101_INITIAL_STATE,
+    type FR0101State,
+    fr0101Adapter,
+} from '@/lib/formEntry/adapters/FR-01-01'
 
 const requestTypeOptions = [
     { value: 'corrective', label: 'اقدام اصلاحی' },
@@ -56,43 +66,6 @@ const effectiveOptions = [
     { value: 'not_effective', label: 'اثربخش نیستند' },
 ]
 
-const initialState = {
-    projectId: '',
-    requesterName: '',
-    requesterUnit: '',
-    actionNumber: '',
-    date: '',
-    requestType: '',
-    actionSource: [] as string[],
-    nonConformityDescription: '',
-    rootCauseObjective: '',
-    riskAssessmentUpdate: '',
-    riskAssessmentDate: '',
-    newKnowledgeExperience: '',
-    requiredActions: [] as Record<string, any>[],
-    responsibleApproval: '',
-    managerApproval: '',
-    affectedDocuments: [] as Record<string, any>[],
-    firstReportStatus: '',
-    firstReportDate: '',
-    firstReportDescription: '',
-    firstReportResponsibleSignature: '',
-    firstReportApproverSignature: '',
-    secondReportStatus: '',
-    secondReportDate: '',
-    secondReportDescription: '',
-    secondReportResponsibleSignature: '',
-    secondReportApproverSignature: '',
-    effectivenessDate: '',
-    effectivenessMethod: '',
-    effectivenessStatus: '',
-    newActionNumber: '',
-    effectivenessReviewer: '',
-    effectivenessSignature: '',
-}
-
-type FormState = typeof initialState
-
 const requestTypeMap: Record<string, 'CORRECTIVE' | 'PREVENTIVE' | 'CHANGE' | 'SUGGESTION'> = {
     corrective: 'CORRECTIVE',
     preventive: 'PREVENTIVE',
@@ -118,12 +91,24 @@ const sourceMap: Record<string, string> = {
 const boolFromYesNo = (value: string) => value === 'yes'
 
 export default function FR0101Page() {
-    const [formData, setFormData] = useState<FormState>(initialState)
+    const searchParams = useSearchParams()
+    const mode = searchParams.get('mode')
+    const entryIdParam = searchParams.get('entryId')
+    const entryId = entryIdParam ? Number(entryIdParam) : null
+    const isEditMode = mode === 'edit' && entryId !== null && !Number.isNaN(entryId)
+
+    const { can } = usePermissions()
+    const canEditArchiveEntries = can('archive', 'update')
+
+    const [formData, setFormData] = useState<FR0101State>(FR0101_INITIAL_STATE)
     const [projects, setProjects] = useState<Project[]>([])
     const [loadingOptions, setLoadingOptions] = useState(false)
+    const [entryLoading, setEntryLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<string[]>([])
+    const [prefilledState, setPrefilledState] = useState<FR0101State | null>(null)
 
     useEffect(() => {
         const loadProjects = async () => {
@@ -133,7 +118,7 @@ export default function FR0101Page() {
                 setProjects(data)
             } catch (err) {
                 console.error('load projects failed', err)
-                setError('دریافت فهرست پروژه‌ها ممکن نشد. دوباره تلاش کنید.')
+                setError('?????? ????? ???????? ???? ???. ?????? ???? ????.')
             } finally {
                 setLoadingOptions(false)
             }
@@ -141,28 +126,65 @@ export default function FR0101Page() {
         loadProjects()
     }, [])
 
-    const updateField = (field: keyof FormState, value: any) => {
+    useEffect(() => {
+        if (!isEditMode || entryId === null) {
+            setFormData(FR0101_INITIAL_STATE)
+            setPrefilledState(null)
+            setFieldErrors([])
+            return
+        }
+
+        const loadEntry = async () => {
+            setEntryLoading(true)
+            try {
+                const entry = await getEntry('FR-01-01', entryId)
+                const mapped = fr0101Adapter.toState(entry)
+                setFormData(mapped)
+                setPrefilledState({ ...mapped })
+                setError(null)
+                setFieldErrors([])
+            } catch (err) {
+                console.error('load entry failed', err)
+                setError('?????? ????? ??? ???? ?????? ???? ???.')
+                setFieldErrors([])
+            } finally {
+                setEntryLoading(false)
+            }
+        }
+
+        loadEntry()
+    }, [entryId, isEditMode])
+
+    const updateField = <K extends keyof FR0101State>(field: K, value: FR0101State[K]) => {
         setFormData((prev) => ({ ...prev, [field]: value }))
     }
 
     const resetForm = () => {
-        setFormData((prev) => ({ ...initialState, projectId: prev.projectId }))
+        if (isEditMode && prefilledState) {
+            setFormData(prefilledState)
+        } else {
+            setFormData((prev) => ({ ...FR0101_INITIAL_STATE, projectId: prev.projectId }))
+        }
         setError(null)
         setSuccess(null)
+        setFieldErrors([])
     }
 
-    const projectOptions = useMemo(
-        () =>
-            projects.map((project) => ({
-                value: String(project.id),
-                label: `${project.code} – ${project.name}`,
-            })),
-        [projects],
-    )
+    const projectOptions = useMemo(() => {
+        const base = projects.map((project) => ({
+            value: String(project.id),
+            label: `${project.code} - ${project.name}`,
+        }))
+        if (isEditMode && formData.projectId && base.every((option) => option.value !== formData.projectId)) {
+            base.unshift({ value: formData.projectId, label: formData.projectId })
+        }
+        return base
+    }, [formData.projectId, isEditMode, projects])
 
     const handleSubmit = async () => {
         setSuccess(null)
         setError(null)
+        setFieldErrors([])
 
         if (!formData.projectId) {
             setError('پروژه را انتخاب کنید.')
@@ -178,6 +200,42 @@ export default function FR0101Page() {
         }
         if (formData.actionSource.length === 0) {
             setError('حداقل یک منبع اقدام را انتخاب کنید.')
+            return
+        }
+
+        if (isEditMode && entryId !== null) {
+            if (!canEditArchiveEntries) {
+                setError('دسترسی لازم برای ویرایش این رکورد را ندارید.')
+                return
+            }
+            try {
+                setSubmitting(true)
+                const payload = fr0101Adapter.toPayload(formData)
+                await updateEntry('FR-01-01', entryId, payload)
+                setPrefilledState({ ...formData })
+                setSuccess('بروزرسانی شد')
+                setFieldErrors([])
+            } catch (err) {
+                console.error('update action form error', err)
+                if (err instanceof ApiError) {
+                    if (err.status === 403) {
+                        setError('اجازه بروزرسانی این رکورد را ندارید.')
+                        setFieldErrors([])
+                    } else if (err.status === 400 || err.status === 422) {
+                        const messages = err.messages && err.messages.length > 0 ? err.messages : null
+                        setError('لطفاً خطاهای زیر را بررسی کنید و سپس دوباره تلاش کنید.')
+                        setFieldErrors(messages ?? ['بروزرسانی فرم با خطا روبه‌رو شد.'])
+                    } else {
+                        setError('بروزرسانی فرم با خطای غیرمنتظره روبه‌رو شد.')
+                        setFieldErrors([])
+                    }
+                } else {
+                    setError('بروزرسانی فرم با خطای غیرمنتظره روبه‌رو شد.')
+                    setFieldErrors([])
+                }
+            } finally {
+                setSubmitting(false)
+            }
             return
         }
 
@@ -201,11 +259,12 @@ export default function FR0101Page() {
 
             const actionId = action.id
 
-            const actionItems = (formData.requiredActions ?? []).filter((row) =>
-                (row.action ?? '').trim() !== '' ||
-                (row.resources ?? '').trim() !== '' ||
-                (row.deadline ?? '').trim() !== '' ||
-                (row.responsible ?? '').trim() !== '',
+            const actionItems = (formData.requiredActions ?? []).filter(
+                (row) =>
+                    (row.action ?? '').trim() !== '' ||
+                    (row.resources ?? '').trim() !== '' ||
+                    (row.deadline ?? '').trim() !== '' ||
+                    (row.responsible ?? '').trim() !== '',
             )
 
             for (const item of actionItems) {
@@ -265,15 +324,47 @@ export default function FR0101Page() {
             }
 
             setSuccess(`اقدام با شناسه ${action.indicator} ثبت شد.`)
-            setFormData((prev) => ({ ...initialState, projectId: prev.projectId, actionNumber: action.indicator }))
-        } catch (err: any) {
+            setFieldErrors([])
+            setFormData((prev) => ({ ...FR0101_INITIAL_STATE, projectId: prev.projectId, actionNumber: action.indicator }))
+        } catch (err) {
             console.error('submit action error', err)
-            const detail = err?.message ?? 'خطایی رخ داد. دوباره تلاش کنید.'
-            setError(detail)
+            if (err instanceof ApiError) {
+                if (err.status === 403) {
+                    setError('دسترسی لازم برای ثبت این فرم را ندارید.')
+                    setFieldErrors([])
+                } else if (err.status === 400 || err.status === 422) {
+                    const messages = err.messages && err.messages.length > 0 ? err.messages : null
+                    setError('لطفاً خطاهای زیر را بررسی کنید.')
+                    setFieldErrors(messages ?? ['ثبت فرم با خطا مواجه شد.'])
+                } else {
+                    setError(err.message ?? 'خطایی رخ داد. دوباره تلاش کنید.')
+                    setFieldErrors([])
+                }
+            } else {
+                const detail = (err as { message?: string })?.message ?? 'خطایی رخ داد. دوباره تلاش کنید.'
+                setError(detail)
+                setFieldErrors([])
+            }
         } finally {
             setSubmitting(false)
         }
     }
+
+    const primaryButtonLabel = isEditMode
+        ? submitting
+            ? 'در حال بروزرسانی...'
+            : 'بروزرسانی'
+        : submitting
+        ? 'در حال ثبت...'
+        : 'ثبت فرم'
+
+    const primaryDisabled =
+        submitting ||
+        loadingOptions ||
+        (isEditMode && (entryLoading || !canEditArchiveEntries))
+
+    const resetDisabled = submitting || loadingOptions || (isEditMode && entryLoading)
+
 
     return (
         <FormLayout
@@ -282,22 +373,31 @@ export default function FR0101Page() {
             onReset={resetForm}
             footer={
                 <div className="space-y-4">
-                    {error && (
+                    {error ? (
                         <div className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-danger text-sm">
                             {error}
                         </div>
-                    )}
-                    {success && (
+                    ) : null}
+                    {fieldErrors.length > 0 ? (
+                        <ul className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                            {fieldErrors.map((message, index) => (
+                                <li key={index} className="leading-relaxed">
+                                    {message}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
+                    {success ? (
                         <div className="rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-success text-sm">
                             {success}
                         </div>
-                    )}
+                    ) : null}
                     <div className="flex items-center justify-end gap-3">
                         <button
                             type="button"
                             className="btn-secondary"
                             onClick={resetForm}
-                            disabled={submitting}
+                            disabled={resetDisabled}
                         >
                             پاک‌کردن فرم
                         </button>
@@ -305,14 +405,36 @@ export default function FR0101Page() {
                             type="button"
                             className="btn-primary"
                             onClick={handleSubmit}
-                            disabled={submitting || loadingOptions}
+                            disabled={primaryDisabled}
                         >
-                            {submitting ? 'در حال ثبت...' : 'ثبت اقدام'}
+                            {primaryButtonLabel}
                         </button>
                     </div>
                 </div>
             }
         >
+            {isEditMode ? (
+                <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    <div className="flex flex-col gap-2">
+                        <span>در حال ویرایش رکورد #{entryId}</span>
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                            <Link href="/archive" className="text-amber-700 underline">
+                                بازگشت به آرشیو
+                            </Link>
+                            {!canEditArchiveEntries ? (
+                                <span className="text-amber-600">مجوز ویرایش برای شما فعال نیست.</span>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {isEditMode && entryLoading ? (
+                <div className="mb-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    در حال بارگذاری اطلاعات فرم...
+                </div>
+            ) : null}
+
             <FormSection title="اطلاعات کلی">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
