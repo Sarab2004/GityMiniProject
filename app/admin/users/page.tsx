@@ -11,14 +11,10 @@ import {
 import { ApiError } from "@/lib/api/_client";
 import type {
   AdminUser,
-  PermissionEntry,
-  Resource,
   RoleCatalogEntry,
+  SimplePermissions,
 } from "@/types/admin";
-import PermissionMatrix from "@/app/ui/admin/PermissionMatrix";
 import ConfirmDialog from "@/app/ui/admin/ConfirmDialog";
-
-const RESOURCES: Resource[] = ["forms", "actions", "archive"];
 
 interface CreateFormState {
   username: string;
@@ -28,32 +24,71 @@ interface CreateFormState {
   reports_to_id: number | null;
 }
 
-function defaultPermissions(): PermissionEntry[] {
-  return RESOURCES.map((resource) => ({
-    resource,
-    can_create: false,
-    can_read: false,
-    can_update: false,
-    can_delete: false,
-  }));
-}
+type SimplePermissionKey = keyof SimplePermissions;
 
-function ensurePermissions(
-  permissions?: PermissionEntry[],
-): PermissionEntry[] {
-  if (!permissions?.length) {
-    return defaultPermissions();
+const defaultSimplePermissions = (): SimplePermissions => ({
+  can_submit_forms: false,
+  can_view_archive: false,
+  can_edit_archive_entries: false,
+  can_delete_archive_entries: false,
+});
+
+const SIMPLE_PERMISSION_KEYS: SimplePermissionKey[] = [
+  "can_submit_forms",
+  "can_view_archive",
+  "can_edit_archive_entries",
+  "can_delete_archive_entries",
+];
+
+const ARCHIVE_DEPENDENCY_MESSAGE = 'برای ویرایش/حذف رکوردها، دسترسی آرشیو باید فعال باشد.';
+
+const SIMPLE_PERMISSION_META
+const applyArchiveDependency = (prev: SimplePermissions, key: SimplePermissionKey, value: boolean): SimplePermissions => {
+  const next = { ...prev, [key]: value };
+  if (key === "can_view_archive" && !value) {
+    next.can_edit_archive_entries = false;
+    next.can_delete_archive_entries = false;
   }
-  const map = new Map<Resource, PermissionEntry>();
-  permissions.forEach((entry) => map.set(entry.resource, entry));
-  return RESOURCES.map((resource) => ({
-    resource,
-    can_create: map.get(resource)?.can_create ?? false,
-    can_read: map.get(resource)?.can_read ?? false,
-    can_update: map.get(resource)?.can_update ?? false,
-    can_delete: map.get(resource)?.can_delete ?? false,
-  }));
-}
+  if ((key === "can_edit_archive_entries" || key === "can_delete_archive_entries") && value) {
+    next.can_view_archive = true;
+  }
+  return next;
+};
+
+const validateSimplePermissions = (simple: SimplePermissions): string | null => {
+  if ((simple.can_edit_archive_entries || simple.can_delete_archive_entries) && !simple.can_view_archive) {
+    return ARCHIVE_DEPENDENCY_MESSAGE;
+  }
+  return null;
+};
+
+const extractSimplePermissions = (user: AdminUser | null | undefined): SimplePermissions => {
+  if (user?.simple_permissions) {
+    return { ...user.simple_permissions };
+  }
+  return defaultSimplePermissions();
+};
+: Record<
+  SimplePermissionKey,
+  { label: string; description?: string }
+> = {
+  can_submit_forms: {
+    label: "ثبت فرم‌ها",
+    description: "اجازه‌ی ارسال شش فرم اصلی سامانه",
+  },
+  can_view_archive: {
+    label: "مشاهده‌ی آرشیو",
+    description: "دسترسی به صفحه‌ی آرشیو و مشاهده‌ی سوابق",
+  },
+  can_edit_archive_entries: {
+    label: "ویرایش رکوردهای آرشیو",
+    description: "امکان بروزرسانی رکوردهای آرشیوی (نیازمند دسترسی آرشیو)",
+  },
+  can_delete_archive_entries: {
+    label: "حذف رکوردهای آرشیو",
+    description: "امکان حذف رکوردهای آرشیوی (نیازمند دسترسی آرشیو)",
+  },
+};
 
 function useDebouncedValue<T>(value: T, delay = 400): T {
   const [debounced, setDebounced] = useState(value);
@@ -81,17 +116,15 @@ export default function AdminUsersPage() {
     role_slug: "",
     reports_to_id: null,
   });
-  const [createPermissions, setCreatePermissions] = useState<
-    PermissionEntry[]
-  >(defaultPermissions);
+  const [createSimplePermissions, setCreateSimplePermissions] = useState(defaultSimplePermissions());
+  const [createPermissionsError, setCreatePermissionsError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createLoading, setCreateLoading] = useState(false);
 
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [editRoleSlug, setEditRoleSlug] = useState("");
-  const [editPermissions, setEditPermissions] = useState<PermissionEntry[]>(
-    defaultPermissions,
-  );
+  const [editSimplePermissions, setEditSimplePermissions] = useState(defaultSimplePermissions());
+  const [editPermissionsError, setEditPermissionsError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [roles, setRoles] = useState<RoleCatalogEntry[]>([]);
@@ -251,7 +284,7 @@ export default function AdminUsersPage() {
       role_slug: "",
       reports_to_id: null,
     });
-    setCreatePermissions(defaultPermissions());
+    setCreateSimplePermissions(defaultSimplePermissions());
     setCreateError(null);
     setIsCreateOpen(true);
   };
@@ -297,6 +330,7 @@ export default function AdminUsersPage() {
   const handleSubmitCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateError(null);
+    setCreatePermissionsError(null);
 
     const selectedRole = createForm.role_slug
       ? roleLookup.get(createForm.role_slug) ?? null
@@ -344,6 +378,12 @@ export default function AdminUsersPage() {
       setCreateForm((prev) => ({ ...prev, reports_to_id: null }));
     }
 
+    const dependencyError = validateSimplePermissions(createSimplePermissions);
+    if (dependencyError) {
+      setCreatePermissionsError(dependencyError);
+      return;
+    }
+
     setCreateLoading(true);
     try {
       await createAdminUser({
@@ -352,12 +392,17 @@ export default function AdminUsersPage() {
         role_slug: createForm.role_slug,
         email: createForm.email.trim() || undefined,
         reports_to_id: createForm.reports_to_id ?? undefined,
-        permissions: createPermissions,
+        simple_permissions: createSimplePermissions,
       });
       setIsCreateOpen(false);
       await loadUsers();
     } catch (err) {
-      setCreateError(formatError(err, "افزودن کاربر جدید با خطا مواجه شد."));
+      const message = formatError(err, "افزودن کاربر جدید با خطا مواجه شد.");
+      if (message === ARCHIVE_DEPENDENCY_MESSAGE) {
+        setCreatePermissionsError(message);
+      } else {
+        setCreateError(message);
+      }
     } finally {
       setCreateLoading(false);
     }
@@ -366,7 +411,7 @@ export default function AdminUsersPage() {
   const handleOpenEdit = (user: AdminUser) => {
     setEditUser(user);
     setEditRoleSlug(user.role?.slug ?? "");
-    setEditPermissions(ensurePermissions(user.permissions));
+    setEditSimplePermissions(user.simple_permissions ?? defaultSimplePermissions());
     setEditError(null);
   };
 

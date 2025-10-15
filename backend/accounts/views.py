@@ -11,6 +11,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import PermissionEntry, RoleCatalog, UserProfile, RESOURCE_CHOICES
+from .permission_utils import (
+    SimplePermissionError,
+    convert_simple_to_permissions,
+    permissions_to_simple,
+)
 from .role_utils import (
     ensure_role_available,
     ensure_roles_exist,
@@ -462,24 +467,47 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def permissions(self, request, pk=None):
         user = self.get_object()
         if request.method == "GET":
-            serializer = PermissionEntrySerializer(
-                user.resource_permissions.all(), many=True
+            permissions_qs = user.resource_permissions.all()
+            serializer = PermissionEntrySerializer(permissions_qs, many=True)
+            return Response(
+                {
+                    "permissions": serializer.data,
+                    "simple_permissions": permissions_to_simple(permissions_qs),
+                }
             )
-            return Response(serializer.data)
 
-        serializer = PermissionEntrySerializer(data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-        AdminUserCreateSerializer._validate_unique_resources(
-            serializer.validated_data
+        if isinstance(request.data, dict) and "simple_permissions" in request.data:
+            simple_payload = request.data.get("simple_permissions") or {}
+            try:
+                mapped_permissions, _ = convert_simple_to_permissions(
+                    simple_payload, request.data.get("permissions")
+                )
+            except SimplePermissionError as exc:
+                return Response(
+                    {"simple_permissions": [exc.message]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            AdminUserCreateSerializer._validate_unique_resources(mapped_permissions)
+            with transaction.atomic():
+                _replace_permissions(user, mapped_permissions)
+        else:
+            serializer = PermissionEntrySerializer(data=request.data, many=True)
+            serializer.is_valid(raise_exception=True)
+            AdminUserCreateSerializer._validate_unique_resources(
+                serializer.validated_data
+            )
+
+            with transaction.atomic():
+                _replace_permissions(user, serializer.validated_data)
+
+        refreshed_qs = user.resource_permissions.all()
+        refreshed = PermissionEntrySerializer(refreshed_qs, many=True)
+        return Response(
+            {
+                "permissions": refreshed.data,
+                "simple_permissions": permissions_to_simple(refreshed_qs),
+            }
         )
-
-        with transaction.atomic():
-            _replace_permissions(user, serializer.validated_data)
-
-        refreshed = PermissionEntrySerializer(
-            user.resource_permissions.all(), many=True
-        )
-        return Response(refreshed.data)
 
 
 class MovePayloadSerializer(serializers.Serializer):

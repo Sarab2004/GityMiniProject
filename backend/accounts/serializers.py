@@ -5,6 +5,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import PermissionEntry, RoleCatalog, UserProfile
+from .permission_utils import (
+    SimplePermissionError,
+    convert_simple_to_permissions,
+    permissions_to_simple,
+)
 from .role_utils import (
     ROLE_DEFINITION_MAP,
     ensure_role_available,
@@ -60,6 +65,13 @@ def _get_role_for_slug(value: str) -> RoleCatalog:
         raise serializers.ValidationError("Selected role does not exist.") from exc
 
 
+class SimplePermissionSerializer(serializers.Serializer):
+    can_submit_forms = serializers.BooleanField(required=False, default=False)
+    can_view_archive = serializers.BooleanField(required=False, default=False)
+    can_edit_archive_entries = serializers.BooleanField(required=False, default=False)
+    can_delete_archive_entries = serializers.BooleanField(required=False, default=False)
+
+
 class AdminUserSerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(source="profile.display_name")
     reports_to_id = serializers.IntegerField(
@@ -69,6 +81,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         source="resource_permissions", many=True, read_only=True
     )
     role = serializers.SerializerMethodField()
+    simple_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -81,6 +94,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "role",
             "reports_to_id",
             "permissions",
+            "simple_permissions",
         ]
 
     def get_role(self, obj):
@@ -94,6 +108,14 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "parent_slug": parent_slug,
             "is_unique": profile.role.is_unique,
         }
+
+    def get_simple_permissions(self, obj):
+        permissions = getattr(obj, "resource_permissions", None)
+        if permissions is None:
+            return permissions_to_simple([])
+        if hasattr(permissions, "all"):
+            permissions = permissions.all()
+        return permissions_to_simple(permissions)
 
 
 class _ReportsToField(serializers.PrimaryKeyRelatedField):
@@ -117,6 +139,7 @@ class AdminUserCreateSerializer(serializers.Serializer):
         source="reports_to_user",
     )
     permissions = PermissionEntrySerializer(many=True, required=False)
+    simple_permissions = SimplePermissionSerializer(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -156,6 +179,7 @@ class AdminUserCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         role_slug = attrs.get("role_slug")
         reports_to_user = attrs.get("reports_to_user")
+        simple_permissions_payload = attrs.pop("simple_permissions", None)
 
         if role_slug:
             role = (
@@ -170,22 +194,49 @@ class AdminUserCreateSerializer(serializers.Serializer):
                 reports_errors = message_dict.get("reports_to") or exc.messages
                 raise serializers.ValidationError({"reports_to_id": reports_errors})
 
+        if simple_permissions_payload is not None:
+            try:
+                mapped_permissions, normalized = convert_simple_to_permissions(
+                    simple_permissions_payload, attrs.get("permissions")
+                )
+            except SimplePermissionError as exc:
+                raise serializers.ValidationError(
+                    {"simple_permissions": [exc.message]}
+                ) from exc
+            AdminUserCreateSerializer._validate_unique_resources(mapped_permissions)
+            attrs["permissions"] = mapped_permissions
+            attrs["simple_permissions"] = normalized
+
         return attrs
 
 
 class AdminUserUpdateSerializer(serializers.Serializer):
     role_slug = serializers.SlugField(required=False)
     permissions = PermissionEntrySerializer(many=True, required=False)
+    simple_permissions = SimplePermissionSerializer(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._selected_role: Optional[RoleCatalog] = None
 
     def validate(self, attrs):
-        if not attrs:
+        simple_permissions_payload = attrs.pop("simple_permissions", None)
+        if not attrs and simple_permissions_payload is None:
             raise serializers.ValidationError(
-                "At least one of role_slug or permissions must be provided."
+                "At least one of role_slug, permissions or simple_permissions must be provided."
             )
+        if simple_permissions_payload is not None:
+            try:
+                mapped_permissions, normalized = convert_simple_to_permissions(
+                    simple_permissions_payload, attrs.get("permissions")
+                )
+            except SimplePermissionError as exc:
+                raise serializers.ValidationError(
+                    {"simple_permissions": [exc.message]}
+                ) from exc
+            AdminUserCreateSerializer._validate_unique_resources(mapped_permissions)
+            attrs["permissions"] = mapped_permissions
+            attrs["simple_permissions"] = normalized
         return attrs
 
     def validate_role_slug(self, value):
@@ -245,6 +296,7 @@ class CreateChildUserSerializer(serializers.Serializer):
     initial_permissions = PermissionEntrySerializer(
         many=True, required=False, allow_empty=True
     )
+    simple_permissions = SimplePermissionSerializer(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -282,6 +334,7 @@ class CreateChildUserSerializer(serializers.Serializer):
     def validate(self, attrs):
         role_slug = attrs.get("role_slug")
         parent = attrs.get("parent")
+        simple_permissions_payload = attrs.pop("simple_permissions", None)
         if role_slug:
             role = (
                 self._selected_role
@@ -294,4 +347,16 @@ class CreateChildUserSerializer(serializers.Serializer):
                 message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
                 reports_errors = message_dict.get("reports_to") or exc.messages
                 raise serializers.ValidationError({"parent_id": reports_errors})
+        if simple_permissions_payload is not None:
+            try:
+                mapped_permissions, normalized = convert_simple_to_permissions(
+                    simple_permissions_payload, attrs.get("initial_permissions")
+                )
+            except SimplePermissionError as exc:
+                raise serializers.ValidationError(
+                    {"simple_permissions": [exc.message]}
+                ) from exc
+            AdminUserCreateSerializer._validate_unique_resources(mapped_permissions)
+            attrs["initial_permissions"] = mapped_permissions
+            attrs["simple_permissions"] = normalized
         return attrs

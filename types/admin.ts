@@ -8,6 +8,13 @@ export interface PermissionEntry {
   can_delete: boolean;
 }
 
+export interface SimplePermissions {
+  can_submit_forms: boolean;
+  can_view_archive: boolean;
+  can_edit_archive_entries: boolean;
+  can_delete_archive_entries: boolean;
+}
+
 export interface AdminUser {
   id: number;
   username: string;
@@ -17,6 +24,7 @@ export interface AdminUser {
   role?: RoleCatalogEntry | null;
   reports_to_id?: number | null;
   permissions: PermissionEntry[];
+  simple_permissions: SimplePermissions;
 }
 
 export interface OrgNode {
