@@ -1,6 +1,8 @@
-﻿'use client'
+'use client'
 
-import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import { FormLayout } from '@/components/forms/FormLayout'
 import { FormSection } from '@/components/ui/FormSection'
 import { TextInput } from '@/components/ui/TextInput'
@@ -21,39 +23,78 @@ import {
     type Project,
     type Section,
 } from '@/lib/hse'
+import { ApiError } from '@/lib/api/_client'
+import { getEntry, updateEntry } from '@/lib/api/formEntry'
+import { usePermissions } from '@/hooks/usePermissions'
+import {
+    FR0112_INITIAL_STATE,
+    type FR0112State,
+    type FR0112MemberRow,
+    fr0112Adapter,
+} from '@/lib/formEntry/adapters/FR-01-12'
 
-type TeamMemberRow = {
-    contractor?: string
-    unit?: string
-    section?: string
-    representative?: string
-    signature?: string
-    tbmNumber?: string
+const validateState = (state: FR0112State): string | null => {
+    if (!state.projectId) {
+        return '????? ?? ?????? ????.'
+    }
+    if (!state.preparer || !state.approver) {
+        return '??? ? ????? ????? ?????? ?? ????? ????.'
+    }
+    if ((state.teamMembers ?? []).length === 0) {
+        return '????? ?? ??? ??? ?? ??? ????.'
+    }
+    return null
 }
 
-const initialState = {
-    projectId: '',
-    teamMembers: [] as TeamMemberRow[],
-    preparer: '',
-    approver: '',
-}
+const trimValue = (value?: string | null): string => (value ?? '').trim()
 
-type FormState = typeof initialState
+const hydrateMemberRow = (
+    row: FR0112MemberRow,
+    contractors: Contractor[],
+    orgUnits: OrgUnit[],
+    sections: Section[],
+): FR0112MemberRow => {
+    const contractor = contractors.find((item) => String(item.id) === row.contractor)
+    const unit = orgUnits.find((item) => String(item.id) === row.unit)
+    const section = sections.find((item) => String(item.id) === row.section)
+    return {
+        contractor: contractor?.name ?? row.contractor ?? '',
+        unit: unit?.name ?? row.unit ?? '',
+        section: section?.name ?? row.section ?? '',
+        representative: row.representative,
+        signature: row.signature,
+        tbmNumber: row.tbmNumber,
+    }
+}
 
 export default function FR0112Page() {
-    const [formData, setFormData] = useState<FormState>(initialState)
+    const searchParams = useSearchParams()
+    const mode = searchParams.get('mode')
+    const entryIdParam = searchParams.get('entryId')
+    const entryId = entryIdParam ? Number(entryIdParam) : null
+    const isEditMode = mode === 'edit' && entryId !== null && !Number.isNaN(entryId)
+
+    const { can } = usePermissions()
+    const canEditArchiveEntries = can('archive', 'update')
+
+    const [formData, setFormData] = useState<FR0112State>(FR0112_INITIAL_STATE)
     const [projects, setProjects] = useState<Project[]>([])
     const [contractors, setContractors] = useState<Contractor[]>([])
     const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([])
     const [sections, setSections] = useState<Section[]>([])
-    const [loading, setLoading] = useState(false)
+    const [optionsLoading, setOptionsLoading] = useState(false)
+    const [entryLoading, setEntryLoading] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<string[]>([])
+    const [prefilledState, setPrefilledState] = useState<FR0112State | null>(null)
+    const [prefillApplied, setPrefillApplied] = useState(false)
 
     useEffect(() => {
         const loadBasics = async () => {
             try {
-                setLoading(true)
+                setOptionsLoading(true)
                 const [proj, cons, units, secs] = await Promise.all([
                     fetchProjects(),
                     fetchContractors(),
@@ -66,31 +107,94 @@ export default function FR0112Page() {
                 setSections(secs)
             } catch (err) {
                 console.error('load basics failed', err)
-                setError('خطا در دریافت داده‌های اولیه. لطفاً صفحه را بازنشانی کنید.')
+                setError('??? ?? ?????? ???????? ?????. ????? ???? ?? ???????? ????.')
             } finally {
-                setLoading(false)
+                setOptionsLoading(false)
             }
         }
         loadBasics()
     }, [])
 
-    const updateField = (field: keyof FormState, value: any) => {
+    useEffect(() => {
+        if (!isEditMode || entryId === null) {
+            setFormData(FR0112_INITIAL_STATE)
+            setPrefilledState(null)
+            setPrefillApplied(false)
+            setFieldErrors([])
+            return
+        }
+
+        const loadEntry = async () => {
+            setEntryLoading(true)
+            try {
+                const entry = await getEntry('FR-01-12', entryId)
+                const mapped = fr0112Adapter.toState(entry)
+                setPrefilledState(mapped)
+                setPrefillApplied(false)
+                setError(null)
+                setFieldErrors([])
+            } catch (err) {
+                console.error('load safety team failed', err)
+                setError('?????? ????? ??? ???? ?????? ???? ???.')
+                setFieldErrors([])
+            } finally {
+                setEntryLoading(false)
+            }
+        }
+
+        loadEntry()
+    }, [entryId, isEditMode])
+
+    useEffect(() => {
+        if (!prefilledState || prefillApplied) {
+            return
+        }
+        const hydratedMembers = prefilledState.teamMembers.map((member) =>
+            hydrateMemberRow(member, contractors, orgUnits, sections),
+        )
+        setFormData({
+            projectId: prefilledState.projectId,
+            preparer: prefilledState.preparer,
+            approver: prefilledState.approver,
+            teamMembers: hydratedMembers,
+        })
+        setPrefillApplied(true)
+    }, [contractors, orgUnits, sections, prefilledState, prefillApplied])
+
+    const projectOptions = useMemo(
+        () =>
+            projects.map((project) => ({
+                value: String(project.id),
+                label: `${project.code} - ${project.name}`,
+            })),
+        [projects],
+    )
+
+    const updateField = <K extends keyof FR0112State>(field: K, value: FR0112State[K]) => {
         setFormData((prev) => ({ ...prev, [field]: value }))
     }
 
     const resetForm = () => {
-        setFormData((prev) => ({ ...initialState, projectId: prev.projectId }))
+        if (isEditMode && prefilledState) {
+            const hydrated = prefilledState.teamMembers.map((member) =>
+                hydrateMemberRow(member, contractors, orgUnits, sections),
+            )
+            setFormData({
+                projectId: prefilledState.projectId,
+                preparer: prefilledState.preparer,
+                approver: prefilledState.approver,
+                teamMembers: hydrated,
+            })
+        } else {
+            setFormData((prev) => ({ ...FR0112_INITIAL_STATE, projectId: prev.projectId }))
+        }
         setError(null)
         setSuccess(null)
+        setFieldErrors([])
     }
 
-    const projectOptions = projects.map((project) => ({
-        value: String(project.id),
-        label: `${project.code} – ${project.name}`,
-    }))
-
     const ensureContractorId = async (name?: string) => {
-        const trimmed = (name ?? '').trim()
+        const trimmed = trimValue(name)
         if (!trimmed) return null
         const existing = contractors.find((item) => item.name === trimmed)
         if (existing) return existing.id
@@ -100,7 +204,7 @@ export default function FR0112Page() {
     }
 
     const ensureOrgUnitId = async (name?: string) => {
-        const trimmed = (name ?? '').trim()
+        const trimmed = trimValue(name)
         if (!trimmed) return null
         const existing = orgUnits.find((item) => item.name === trimmed)
         if (existing) return existing.id
@@ -110,7 +214,7 @@ export default function FR0112Page() {
     }
 
     const ensureSectionId = async (name: string | undefined, orgUnitId: number | null) => {
-        const trimmed = (name ?? '').trim()
+        const trimmed = trimValue(name)
         if (!trimmed || !orgUnitId) return null
         const existing = sections.find((item) => item.name === trimmed && item.org_unit === orgUnitId)
         if (existing) return existing.id
@@ -122,26 +226,53 @@ export default function FR0112Page() {
     const handleSubmit = async () => {
         setError(null)
         setSuccess(null)
+        setFieldErrors([])
 
-        if (!formData.projectId) {
-            setError('پروژه را انتخاب کنید.')
+        const validationError = validateState(formData)
+        if (validationError) {
+            setError(validationError)
             return
         }
-        if (!formData.preparer) {
-            setError('نام تهیه‌کننده را وارد کنید.')
-            return
-        }
-        if (!formData.approver) {
-            setError('نام تاییدکننده را وارد کنید.')
-            return
-        }
-        if ((formData.teamMembers ?? []).length === 0) {
-            setError('حداقل یک عضو تیم را ثبت کنید.')
+
+        if (isEditMode && entryId !== null) {
+            if (!canEditArchiveEntries) {
+                setError('?????? ???? ???? ?????? ??? ????? ?? ??????.')
+                return
+            }
+            try {
+                setSubmitting(true)
+                const payload = fr0112Adapter.toPayload(formData)
+                await updateEntry('FR-01-12', entryId, payload)
+                setPrefilledState({
+                    ...formData,
+                })
+                setSuccess('????????? ??')
+            } catch (err) {
+                console.error('update safety team error', err)
+                if (err instanceof ApiError) {
+                    if (err.status === 403) {
+                        setError('????? ????????? ??? ????? ?? ??????.')
+                        setFieldErrors([])
+                    } else if (err.status === 400 || err.status === 422) {
+                        const messages = err.messages && err.messages.length > 0 ? err.messages : null
+                        setError('????? ?????? ??? ?? ????? ???? ? ??? ?????? ???? ????.')
+                        setFieldErrors(messages ?? ['????????? ??? ?? ??? ??????? ??.'])
+                    } else {
+                        setError('????????? ??? ?? ???? ????????? ??????? ??.')
+                        setFieldErrors([])
+                    }
+                } else {
+                    setError('????????? ??? ?? ???? ????????? ??????? ??.')
+                    setFieldErrors([])
+                }
+            } finally {
+                setSubmitting(false)
+            }
             return
         }
 
         try {
-            setLoading(true)
+            setSubmitting(true)
             const team = await createSafetyTeam({
                 project: Number(formData.projectId),
                 prepared_by_name: formData.preparer,
@@ -149,7 +280,7 @@ export default function FR0112Page() {
             })
 
             for (const member of formData.teamMembers) {
-                const representative = (member.representative ?? '').trim()
+                const representative = trimValue(member.representative)
                 if (!representative) {
                     continue
                 }
@@ -161,79 +292,142 @@ export default function FR0112Page() {
                     unit: unitId,
                     section: sectionId,
                     representative_name: representative,
-                    signature_text: member.signature?.trim() || undefined,
-                    tbm_no: member.tbmNumber?.trim() || undefined,
+                    signature_text: trimValue(member.signature) || undefined,
+                    tbm_no: trimValue(member.tbmNumber) || undefined,
                 })
             }
 
-            setSuccess('تیم همیاران با موفقیت ثبت شد.')
-            setFormData((prev) => ({ ...initialState, projectId: prev.projectId }))
+            setSuccess('??? ??????? ?? ?????? ??? ??.')
+            setFormData((prev) => ({ ...FR0112_INITIAL_STATE, projectId: prev.projectId }))
         } catch (err: any) {
             console.error('submit safety team error', err)
-            setError(err?.message ?? 'ثبت تیم با خطا مواجه شد.')
+            if (err instanceof ApiError) {
+                if (err.status === 403) {
+                    setError('?????? ???? ???? ?????? ?? ?????? ??????? ????.')
+                    setFieldErrors([])
+                } else if (err.status === 400 || err.status === 422) {
+                    const messages = err.messages && err.messages.length > 0 ? err.messages : null
+                    setError('????? ?????? ??? ?? ????? ???? ? ??? ?????? ???? ????.')
+                    setFieldErrors(messages ?? ['??? ??? ?? ??? ????? ??.'])
+                } else {
+                    setError(err.message ?? '??? ??? ?? ??? ????? ??.')
+                    setFieldErrors([])
+                }
+            } else {
+                const detail = (err as { message?: string })?.message ?? '??? ??? ?? ??? ????? ??.'
+                setError(detail)
+                setFieldErrors([])
+            }
         } finally {
-            setLoading(false)
+            setSubmitting(false)
         }
     }
 
+    const primaryButtonLabel = isEditMode
+        ? submitting
+            ? '?? ??? ?????????...'
+            : '?????????'
+        : submitting
+        ? '?? ??? ???...'
+        : '??? ???'
+
+    const primaryDisabled =
+        submitting ||
+        optionsLoading ||
+        (isEditMode && (entryLoading || !canEditArchiveEntries))
+
+    const resetDisabled = submitting || optionsLoading || (isEditMode && entryLoading)
+
     return (
         <FormLayout
-            title="تشکیل تیم همیاران HSE"
+            title="????? ??? ??????? HSE"
             code="FR-01-12-00"
             onReset={resetForm}
             footer={
                 <div className="space-y-4">
-                    {error && (
+                    {error ? (
                         <div className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-danger text-sm">
                             {error}
                         </div>
-                    )}
-                    {success && (
+                    ) : null}
+                    {fieldErrors.length > 0 ? (
+                        <ul className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                            {fieldErrors.map((message, index) => (
+                                <li key={index} className="leading-relaxed">
+                                    {message}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
+                    {success ? (
                         <div className="rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-success text-sm">
                             {success}
                         </div>
-                    )}
+                    ) : null}
                     <div className="flex items-center justify-end gap-3">
                         <button
                             type="button"
                             className="btn-secondary"
                             onClick={resetForm}
-                            disabled={loading}
+                            disabled={resetDisabled}
                         >
-                            پاک‌کردن فرم
+                            ???????? ???
                         </button>
                         <button
                             type="button"
                             className="btn-primary"
                             onClick={handleSubmit}
-                            disabled={loading}
+                            disabled={primaryDisabled}
                         >
-                            {loading ? 'در حال ثبت...' : 'ثبت تیم'}
+                            {primaryButtonLabel}
                         </button>
                     </div>
                 </div>
             }
         >
-            <FormSection title="اطلاعات کلی">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isEditMode ? (
+                <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    <div className="flex flex-col gap-2">
+                        <span>?? ??? ?????? ????? #{entryId}</span>
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                            <Link href="/archive" className="text-amber-700 underline">
+                                ?????? ?? ????? 
+                            </Link>
+                            {!canEditArchiveEntries ? (
+                                <span className="text-amber-600">????? ?????? ???? ??? ???? ????.</span>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {isEditMode && entryLoading ? (
+                <div className="mb-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    ?? ??? ???????? ??????? ???...
+                </div>
+            ) : null}
+
+            <FormSection title="??????? ???">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Select
-                        label="پروژه"
+                        label="?????"
                         required
                         options={projectOptions}
                         value={formData.projectId}
-                        onChange={(value) => updateField('projectId', value)}
-                        placeholder={loading && projectOptions.length === 0 ? 'در حال بارگذاری...' : 'انتخاب کنید'}
+                        onChange={(value) => updateField('projectId', value as FR0112State['projectId'])}
+                        placeholder={optionsLoading && projectOptions.length === 0 ? '?? ??? ????????...' : '?????? ????'}
+                        disabled={optionsLoading}
                     />
                     <TextInput
-                        label="تهیه‌کننده (کارشناس HSE)"
-                        placeholder="نام و امضای کارشناس HSE"
+                        label="?????????? (??????? HSE)"
+                        placeholder="??? ? ????? ??????? HSE"
                         required
                         value={formData.preparer}
                         onChange={(value) => updateField('preparer', value)}
                     />
                     <TextInput
-                        label="تصویب‌کننده (مدیر پروژه/سرپرست کارگاه)"
-                        placeholder="نام و امضای مدیر پروژه"
+                        label="??????????? (???? ?????/?????? ??????)"
+                        placeholder="??? ? ????? ???? ?????"
                         required
                         value={formData.approver}
                         onChange={(value) => updateField('approver', value)}
@@ -241,20 +435,20 @@ export default function FR0112Page() {
                 </div>
             </FormSection>
 
-            <FormSection title="اعضای تیم همیاران HSE">
+            <FormSection title="????? ??? ??????? HSE">
                 <RowRepeater
-                    label="اعضای تیم"
+                    label="????? ???"
                     columns={[
-                        { key: 'contractor', label: 'نام پیمانکار', type: 'text', placeholder: 'مثال: نصب‌افزار جنوب' },
-                        { key: 'unit', label: 'نام واحد', type: 'text', placeholder: 'مثال: تولید' },
-                        { key: 'section', label: 'نام بخش', type: 'text', placeholder: 'مثال: برش‌کاری' },
-                        { key: 'representative', label: 'نام نماینده بخش', type: 'text', placeholder: 'نام و سمت' },
-                        { key: 'signature', label: 'امضا', type: 'text', placeholder: 'امضای نماینده' },
-                        { key: 'tbmNumber', label: 'شماره TBM', type: 'text', placeholder: 'مثال: TBM-1403-027' },
+                        { key: 'contractor', label: '??? ????????', type: 'text', placeholder: '????: ????????? ????' },
+                        { key: 'unit', label: '??? ????', type: 'text', placeholder: '????: ?????' },
+                        { key: 'section', label: '??? ???', type: 'text', placeholder: '????: ????????' },
+                        { key: 'representative', label: '??? ??????? ???', type: 'text', placeholder: '??? ? ???' },
+                        { key: 'signature', label: '????', type: 'text', placeholder: '????? ???????' },
+                        { key: 'tbmNumber', label: '????? TBM', type: 'text', placeholder: '????: TBM-1403-027' },
                     ]}
                     value={formData.teamMembers}
-                    onChange={(value) => updateField('teamMembers', value as TeamMemberRow[])}
-                    helper="در زمان ثبت، در صورت وجود نام واحد/بخش/پیمانکار در سامانه از همان استفاده می‌شود؛ در غیر این صورت به صورت خودکار ایجاد خواهند شد."
+                    onChange={(value) => updateField('teamMembers', value as FR0112MemberRow[])}
+                    helper="?? ???? ???? ?? ???? ???? ??? ????/???/???????? ?? ?????? ?? ???? ??????? ??????? ?? ??? ??? ???? ?? ???? ?????? ????? ?????? ??."
                 />
             </FormSection>
         </FormLayout>

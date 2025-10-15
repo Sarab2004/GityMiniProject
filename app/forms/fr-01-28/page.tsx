@@ -1,6 +1,8 @@
-﻿'use client'
+'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import { FormLayout } from '@/components/forms/FormLayout'
 import { FormSection } from '@/components/ui/FormSection'
 import { TextInput } from '@/components/ui/TextInput'
@@ -19,105 +21,87 @@ import {
     type Project,
     type Section,
 } from '@/lib/hse'
-
-type RiskFormState = {
-    projectId: string
-    unitId: string
-    sectionId: string
-    processTitle: string
-    activityDesc: string
-    routineFlag: 'R' | 'N'
-    hazardDesc: string
-    eventDesc: string
-    consequenceDesc: string
-    rootCauseDesc: string
-    controlsDesc: string
-    inputs: string[]
-    legalRequirement: string
-    legalStatus: 'COMPLIANT' | 'NONCOMPLIANT'
-    riskType: 'SAFETY' | 'HEALTH' | 'PROPERTY'
-    A: string
-    B: string
-    C: string
-    S: string
-    D: string
-    actionNumber: string
-    reevalA: string
-    reevalB: string
-    reevalC: string
-    reevalS: string
-    reevalD: string
-    reevalActionNumber: string
-}
-
-const initialState: RiskFormState = {
-    projectId: '',
-    unitId: '',
-    sectionId: '',
-    processTitle: '',
-    activityDesc: '',
-    routineFlag: 'R',
-    hazardDesc: '',
-    eventDesc: '',
-    consequenceDesc: '',
-    rootCauseDesc: '',
-    controlsDesc: '',
-    inputs: [],
-    legalRequirement: '',
-    legalStatus: 'COMPLIANT',
-    riskType: 'SAFETY',
-    A: '',
-    B: '',
-    C: '',
-    S: '',
-    D: '',
-    actionNumber: '',
-    reevalA: '',
-    reevalB: '',
-    reevalC: '',
-    reevalS: '',
-    reevalD: '',
-    reevalActionNumber: '',
-}
+import { ApiError } from '@/lib/api/_client'
+import { getEntry, updateEntry } from '@/lib/api/formEntry'
+import { usePermissions } from '@/hooks/usePermissions'
+import {
+    FR0128_INITIAL_STATE,
+    type FR0128State,
+    fr0128Adapter,
+} from '@/lib/formEntry/adapters/FR-01-28'
 
 const routineOptions = [
-    { value: 'R', label: 'R (روتین)' },
-    { value: 'N', label: 'N (غیرروتین)' },
+    { value: 'R', label: 'R (?????)' },
+    { value: 'N', label: 'N (????????)' },
 ]
 
 const legalOptions = [
-    { value: 'COMPLIANT', label: 'منطبق' },
-    { value: 'NONCOMPLIANT', label: 'نامنطبق' },
+    { value: 'COMPLIANT', label: '?????' },
+    { value: 'NONCOMPLIANT', label: '???????' },
 ]
 
 const riskTypeOptions = [
-    { value: 'SAFETY', label: 'ایمنی (S)' },
-    { value: 'HEALTH', label: 'بهداشتی (H)' },
-    { value: 'PROPERTY', label: 'اموال (F)' },
+    { value: 'SAFETY', label: '????? (S)' },
+    { value: 'HEALTH', label: '??????? (H)' },
+    { value: 'PROPERTY', label: '????? (F)' },
 ]
 
 const inputOptions = [
-    { value: 'INCIDENTS', label: 'حوادث (INCIDENTS)' },
-    { value: 'NEAR_MISS', label: 'شبه‌حوادث (NEAR_MISS)' },
-    { value: 'HARMFUL_AGENTS', label: 'عوامل زیان‌آور (HARMFUL_AGENTS)' },
-    { value: 'OPERATIONAL_CONTROL', label: 'کنترل‌های عملیاتی (OPERATIONAL_CONTROL)' },
-    { value: 'LEGAL_COMPLIANCE', label: 'الزامات قانونی (LEGAL_COMPLIANCE)' },
-    { value: 'CONTINUAL_IMPROVEMENT', label: 'بهبود مستمر (CONTINUAL_IMPROVEMENT)' },
+    { value: 'INCIDENTS', label: '????? (INCIDENTS)' },
+    { value: 'NEAR_MISS', label: '????????? (NEAR_MISS)' },
+    { value: 'HARMFUL_AGENTS', label: '????? ???????? (HARMFUL_AGENTS)' },
+    { value: 'OPERATIONAL_CONTROL', label: '????????? ??????? (OPERATIONAL_CONTROL)' },
+    { value: 'LEGAL_COMPLIANCE', label: '??????? ?????? (LEGAL_COMPLIANCE)' },
+    { value: 'CONTINUAL_IMPROVEMENT', label: '????? ????? (CONTINUAL_IMPROVEMENT)' },
 ]
 
+const ensureNumbers = (...values: string[]) => values.every((value) => value && !Number.isNaN(Number(value)))
+
+const validateState = (state: FR0128State): string | null => {
+    if (!state.projectId || !state.unitId) {
+        return '?????? ????? ? ???? ?????? ???.'
+    }
+    if (!state.processTitle || !state.activityDesc) {
+        return '????? ?????? ? ??? ?????? ?? ????? ????.'
+    }
+    if (!state.hazardDesc || !state.eventDesc || !state.consequenceDesc) {
+        return '??? ???? ?????? ? ????? ?????? ???.'
+    }
+    if (!state.rootCauseDesc || !state.controlsDesc) {
+        return '??? ??????? ? ????????? ????? ?????? ???.'
+    }
+    if (!ensureNumbers(state.A, state.B, state.C, state.S, state.D)) {
+        return '?????? A? B? C? S ? D ???? ???? ?????.'
+    }
+    return null
+}
+
 export default function FR0128Page() {
-    const [formData, setFormData] = useState<RiskFormState>(initialState)
+    const searchParams = useSearchParams()
+    const mode = searchParams.get('mode')
+    const entryIdParam = searchParams.get('entryId')
+    const entryId = entryIdParam ? Number(entryIdParam) : null
+    const isEditMode = mode === 'edit' && entryId !== null && !Number.isNaN(entryId)
+
+    const { can } = usePermissions()
+    const canEditArchiveEntries = can('archive', 'update')
+
+    const [formData, setFormData] = useState<FR0128State>(FR0128_INITIAL_STATE)
     const [projects, setProjects] = useState<Project[]>([])
     const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([])
     const [sections, setSections] = useState<Section[]>([])
-    const [loading, setLoading] = useState(false)
+    const [optionsLoading, setOptionsLoading] = useState(false)
+    const [entryLoading, setEntryLoading] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<string[]>([])
+    const [prefilledState, setPrefilledState] = useState<FR0128State | null>(null)
 
     useEffect(() => {
         const loadOptions = async () => {
             try {
-                setLoading(true)
+                setOptionsLoading(true)
                 const [proj, units, secs] = await Promise.all([
                     fetchProjects(),
                     fetchOrgUnits(),
@@ -128,67 +112,146 @@ export default function FR0128Page() {
                 setSections(secs)
             } catch (err) {
                 console.error('load risk options failed', err)
-                setError('بارگیری داده‌های پایه ممکن نشد. لطفاً صفحه را بازنشانی کنید.')
+                setError('?????? ????? ???????? ???? ???. ????? ???? ????.')
             } finally {
-                setLoading(false)
+                setOptionsLoading(false)
             }
         }
         loadOptions()
     }, [])
 
-    const updateField = <K extends keyof RiskFormState>(field: K, value: RiskFormState[K]) => {
+    useEffect(() => {
+        if (!isEditMode || entryId === null) {
+            setFormData(FR0128_INITIAL_STATE)
+            setPrefilledState(null)
+            setFieldErrors([])
+            return
+        }
+
+        const loadEntry = async () => {
+            setEntryLoading(true)
+            try {
+                const entry = await getEntry('FR-01-28', entryId)
+                const mapped = fr0128Adapter.toState(entry)
+                setFormData(mapped)
+                setPrefilledState({ ...mapped })
+                setError(null)
+                setFieldErrors([])
+            } catch (err) {
+                console.error('load risk entry failed', err)
+                setError('?????? ????? ??? ???? ?????? ???? ???.')
+                setFieldErrors([])
+            } finally {
+                setEntryLoading(false)
+            }
+        }
+
+        loadEntry()
+    }, [entryId, isEditMode])
+
+    const projectOptions = useMemo(
+        () =>
+            projects.map((project) => ({
+                value: String(project.id),
+                label: `${project.code} - ${project.name}`,
+            })),
+        [projects],
+    )
+
+    const unitOptions = useMemo(
+        () =>
+            orgUnits.map((unit) => ({
+                value: String(unit.id),
+                label: unit.name,
+            })),
+        [orgUnits],
+    )
+
+    const filteredSections = useMemo(() => {
+        if (!formData.unitId) {
+            return sections
+        }
+        const unitId = Number(formData.unitId)
+        return sections.filter((section) => section.org_unit === unitId)
+    }, [formData.unitId, sections])
+
+    const sectionOptions = useMemo(
+        () =>
+            filteredSections.map((section) => ({
+                value: String(section.id),
+                label: section.name,
+            })),
+        [filteredSections],
+    )
+
+    const updateField = <K extends keyof FR0128State>(field: K, value: FR0128State[K]) => {
         setFormData((prev) => ({ ...prev, [field]: value }))
     }
 
     const resetForm = () => {
-        setFormData(initialState)
+        if (isEditMode && prefilledState) {
+            setFormData(prefilledState)
+        } else {
+            setFormData((prev) => ({
+                ...FR0128_INITIAL_STATE,
+                projectId: prev.projectId,
+                unitId: prev.unitId,
+                sectionId: prev.sectionId,
+            }))
+        }
         setError(null)
         setSuccess(null)
+        setFieldErrors([])
     }
-
-    const projectOptions = projects.map((project) => ({
-        value: String(project.id),
-        label: `${project.code} – ${project.name}`,
-    }))
-
-    const unitOptions = orgUnits.map((unit) => ({ value: String(unit.id), label: unit.name }))
-
-    const filteredSections = useMemo(
-        () => sections.filter((section) => String(section.org_unit) === formData.unitId),
-        [sections, formData.unitId],
-    )
-
-    const sectionOptions = filteredSections.map((section) => ({ value: String(section.id), label: section.name }))
-
-    const ensureNumbers = (...values: string[]) => values.every((value) => value && !Number.isNaN(Number(value)))
 
     const handleSubmit = async () => {
         setError(null)
         setSuccess(null)
+        setFieldErrors([])
 
-        if (!formData.projectId || !formData.unitId) {
-            setError('انتخاب پروژه و واحد الزامی است.')
+        const validationError = validateState(formData)
+        if (validationError) {
+            setError(validationError)
             return
         }
-        if (!formData.processTitle || !formData.activityDesc) {
-            setError('عنوان فرآیند و شرح فعالیت را تکمیل کنید.')
-            return
-        }
-        if (!formData.hazardDesc || !formData.eventDesc || !formData.consequenceDesc) {
-            setError('شرح خطر، رویداد و پیامد الزامی است.')
-            return
-        }
-        if (!formData.rootCauseDesc || !formData.controlsDesc) {
-            setError('علت ریشه‌ای و کنترل‌های موجود الزامی است.')
-            return
-        }
-        if (!ensureNumbers(formData.A, formData.B, formData.C, formData.S, formData.D)) {
-            setError('مقادیر A، B، C، S و D باید عددی باشند.')
+
+        if (isEditMode && entryId !== null) {
+            if (!canEditArchiveEntries) {
+                setError('?????? ???? ???? ?????? ??? ????? ?? ??????.')
+                return
+            }
+            try {
+                setSubmitting(true)
+                const payload = fr0128Adapter.toPayload(formData)
+                await updateEntry('FR-01-28', entryId, payload)
+                setPrefilledState({ ...formData })
+                setSuccess('????????? ??')
+            } catch (err) {
+                console.error('update risk record error', err)
+                if (err instanceof ApiError) {
+                    if (err.status === 403) {
+                        setError('????? ????????? ??? ????? ?? ??????.')
+                        setFieldErrors([])
+                    } else if (err.status === 400 || err.status === 422) {
+                        const messages = err.messages && err.messages.length > 0 ? err.messages : null
+                        setError('????? ?????? ??? ?? ????? ???? ? ??? ?????? ???? ????.')
+                        setFieldErrors(messages ?? ['????????? ??? ?? ??? ??????? ??.'])
+                    } else {
+                        setError('????????? ??? ?? ???? ????????? ??????? ??.')
+                        setFieldErrors([])
+                    }
+                } else {
+                    setError('????????? ??? ?? ???? ????????? ??????? ??.')
+                    setFieldErrors([])
+                }
+            } finally {
+                setSubmitting(false)
+            }
             return
         }
 
         try {
-            setLoading(true)
+            setSubmitting(true)
             const risk = await createRiskRecord({
                 project: Number(formData.projectId),
                 unit: Number(formData.unitId),
@@ -231,241 +294,305 @@ export default function FR0128Page() {
                 })
             }
 
-            setSuccess('ریسک با موفقیت ثبت شد.')
+            setSuccess('???? ?? ?????? ??? ??.')
             setFormData((prev) => ({
-                ...initialState,
+                ...FR0128_INITIAL_STATE,
                 projectId: prev.projectId,
                 unitId: prev.unitId,
                 sectionId: prev.sectionId,
             }))
         } catch (err: any) {
             console.error('submit risk error', err)
-            setError(err?.message ?? 'خطا در ثبت ریسک رخ داد.')
+            if (err instanceof ApiError) {
+                if (err.status === 403) {
+                    setError('?????? ???? ???? ?????? ?? ?????? ??????? ????.')
+                    setFieldErrors([])
+                } else if (err.status === 400 || err.status === 422) {
+                    const messages = err.messages && err.messages.length > 0 ? err.messages : null
+                    setError('????? ?????? ??? ?? ????? ???? ? ??? ?????? ???? ????.')
+                    setFieldErrors(messages ?? ['??? ?? ??? ???? ?? ???.'])
+                } else {
+                    setError(err.message ?? '??? ?? ??? ???? ?? ???.')
+                    setFieldErrors([])
+                }
+            } else {
+                const detail = (err as { message?: string })?.message ?? '??? ?? ??? ???? ?? ???.'
+                setError(detail)
+                setFieldErrors([])
+            }
         } finally {
-            setLoading(false)
+            setSubmitting(false)
         }
     }
 
+    const primaryButtonLabel = isEditMode
+        ? submitting
+            ? '?? ??? ?????????...'
+            : '?????????'
+        : submitting
+        ? '?? ??? ???...'
+        : '??? ????'
+
+    const primaryDisabled =
+        submitting ||
+        optionsLoading ||
+        (isEditMode && (entryLoading || !canEditArchiveEntries))
+
+    const resetDisabled = submitting || optionsLoading || (isEditMode && entryLoading)
+
     return (
         <FormLayout
-            title="شناسایی و ارزیابی ریسک‌های ایمنی، بهداشتی و اموال"
+            title="??????? ? ??????? ???????? ?????? ??????? ? ?????"
             code="FR-01-28-00"
             onReset={resetForm}
             footer={
                 <div className="space-y-4">
-                    {error && (
+                    {error ? (
                         <div className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-danger text-sm">
                             {error}
                         </div>
-                    )}
-                    {success && (
+                    ) : null}
+                    {fieldErrors.length > 0 ? (
+                        <ul className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                            {fieldErrors.map((message, index) => (
+                                <li key={index} className="leading-relaxed">
+                                    {message}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
+                    {success ? (
                         <div className="rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-success text-sm">
                             {success}
                         </div>
-                    )}
+                    ) : null}
                     <div className="flex items-center justify-end gap-3">
                         <button
                             type="button"
                             className="btn-secondary"
                             onClick={resetForm}
-                            disabled={loading}
+                            disabled={resetDisabled}
                         >
-                            پاک‌کردن فرم
+                            ???????? ???
                         </button>
                         <button
                             type="button"
                             className="btn-primary"
                             onClick={handleSubmit}
-                            disabled={loading}
+                            disabled={primaryDisabled}
                         >
-                            {loading ? 'در حال ثبت...' : 'ثبت ریسک'}
+                            {primaryButtonLabel}
                         </button>
                     </div>
                 </div>
             }
         >
-            <FormSection title="اطلاعات کلی">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isEditMode ? (
+                <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    <div className="flex flex-col gap-2">
+                        <span>?? ??? ?????? ????? #{entryId}</span>
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                            <Link href="/archive" className="text-amber-700 underline">
+                                ?????? ?? ????? 
+                            </Link>
+                            {!canEditArchiveEntries ? (
+                                <span className="text-amber-600">????? ?????? ???? ??? ???? ????.</span>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {isEditMode && entryLoading ? (
+                <div className="mb-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    ?? ??? ???????? ??????? ???...
+                </div>
+            ) : null}
+
+            <FormSection title="??????? ???">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Select
-                        label="پروژه"
+                        label="?????"
                         required
                         options={projectOptions}
                         value={formData.projectId}
-                        onChange={(value) => updateField('projectId', value as RiskFormState['projectId'])}
-                        placeholder={loading && projectOptions.length === 0 ? 'در حال بارگذاری...' : 'انتخاب کنید'}
+                        onChange={(value) => updateField('projectId', value as FR0128State['projectId'])}
+                        placeholder={optionsLoading && projectOptions.length === 0 ? '?? ??? ????????...' : '?????? ????'}
+                        disabled={optionsLoading}
                     />
                     <Select
-                        label="واحد"
+                        label="????"
                         required
                         options={unitOptions}
                         value={formData.unitId}
                         onChange={(value) => {
-                            updateField('unitId', value as RiskFormState['unitId'])
+                            updateField('unitId', value as FR0128State['unitId'])
                             updateField('sectionId', '')
                         }}
+                        placeholder={optionsLoading && unitOptions.length === 0 ? '?? ??? ????????...' : '?????? ????'}
+                        disabled={optionsLoading}
                     />
                     <Select
-                        label="بخش"
+                        label="???"
                         options={sectionOptions}
                         value={formData.sectionId}
-                        onChange={(value) => updateField('sectionId', value as RiskFormState['sectionId'])}
-                        placeholder={filteredSections.length === 0 ? 'بخشی ثبت نشده است' : 'انتخاب کنید'}
+                        onChange={(value) => updateField('sectionId', value as FR0128State['sectionId'])}
+                        placeholder={filteredSections.length === 0 ? '???? ??? ???? ???' : '?????? ????'}
+                        disabled={filteredSections.length === 0}
                     />
                 </div>
             </FormSection>
 
-            <FormSection title="تعریف فرآیند">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormSection title="????? ??????">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <TextInput
-                        label="عنوان فرآیند"
-                        required
+                        label="????? ??????"
                         value={formData.processTitle}
                         onChange={(value) => updateField('processTitle', value)}
                     />
-                    <TextInput
-                        label="شرح فعالیت"
-                        required
+                    <Textarea
+                        label="???????/?????"
                         value={formData.activityDesc}
                         onChange={(value) => updateField('activityDesc', value)}
                     />
                     <RadioGroup
-                        label="نوع فعالیت"
+                        label="??? ?????/????"
                         options={routineOptions}
                         value={formData.routineFlag}
-                        onChange={(value) => updateField('routineFlag', value as 'R' | 'N')}
+                        onChange={(value) => updateField('routineFlag', value as FR0128State['routineFlag'])}
                     />
                 </div>
             </FormSection>
 
-            <FormSection title="تحلیل ریسک">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormSection title="?????? ??????">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Textarea
-                        label="خطر/عامل زیان‌آور"
+                        label="??? ????"
                         value={formData.hazardDesc}
                         onChange={(value) => updateField('hazardDesc', value)}
                     />
                     <Textarea
-                        label="رویداد محتمل"
+                        label="?????? ?????"
                         value={formData.eventDesc}
                         onChange={(value) => updateField('eventDesc', value)}
                     />
                     <Textarea
-                        label="پیامد/اثرات"
+                        label="?????/?????"
                         value={formData.consequenceDesc}
                         onChange={(value) => updateField('consequenceDesc', value)}
                     />
                     <Textarea
-                        label="علت ریشه‌ای"
+                        label="??? ???????"
                         value={formData.rootCauseDesc}
                         onChange={(value) => updateField('rootCauseDesc', value)}
                     />
                     <Textarea
-                        label="کنترل‌های موجود"
+                        label="????????? ?????"
                         value={formData.controlsDesc}
                         onChange={(value) => updateField('controlsDesc', value)}
                     />
                 </div>
                 <CheckboxGroup
-                    label="منشأ شناسایی"
+                    label="???? ???????"
                     options={inputOptions}
                     value={formData.inputs}
                     onChange={(value) => updateField('inputs', value)}
                 />
             </FormSection>
 
-            <FormSection title="وضعیت قانونی و نوع ریسک">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormSection title="????? ?????? ? ??? ????">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Textarea
-                        label="الزام قانونی"
+                        label="????? ??????"
                         value={formData.legalRequirement}
                         onChange={(value) => updateField('legalRequirement', value)}
                     />
                     <RadioGroup
-                        label="وضعیت الزام قانونی"
+                        label="????? ????? ??????"
                         options={legalOptions}
                         value={formData.legalStatus}
-                        onChange={(value) => updateField('legalStatus', value as RiskFormState['legalStatus'])}
+                        onChange={(value) => updateField('legalStatus', value as FR0128State['legalStatus'])}
                     />
                     <RadioGroup
-                        label="نوع ریسک"
+                        label="??? ????"
                         options={riskTypeOptions}
                         value={formData.riskType}
-                        onChange={(value) => updateField('riskType', value as RiskFormState['riskType'])}
+                        onChange={(value) => updateField('riskType', value as FR0128State['riskType'])}
                     />
                     <TextInput
-                        label="شماره اقدام اصلاحی/پیشگیرانه/تغییر"
+                        label="????? ????? ??????/?????????/?????"
                         value={formData.actionNumber}
                         onChange={(value) => updateField('actionNumber', value)}
-                        helper="در صورت نیاز به اقدام، شماره FR-01-01 را وارد کنید."
+                        helper="?? ???? ???? ?? ?????? ????? FR-01-01 ?? ???? ????."
                     />
                 </div>
             </FormSection>
 
-            <FormSection title="ارزیابی عددی">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormSection title="??????? ????">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <NumberInput
-                        label="A (آمار حوادث/سال)"
+                        label="A (???? ?????/???)"
                         value={formData.A}
                         onChange={(value) => updateField('A', String(value))}
                     />
                     <NumberInput
-                        label="B (تعداد افراد/تجهیزات در معرض)"
+                        label="B (????? ?????/??????? ?? ????)"
                         value={formData.B}
                         onChange={(value) => updateField('B', String(value))}
                     />
                     <NumberInput
-                        label="C (مدت مواجهه)"
+                        label="C (??? ??????)"
                         value={formData.C}
                         onChange={(value) => updateField('C', String(value))}
                     />
                     <NumberInput
-                        label="S (شدت اثر 1-10)"
+                        label="S (??? ??? 1-10)"
                         value={formData.S}
                         onChange={(value) => updateField('S', String(value))}
                     />
                     <NumberInput
-                        label="D (احتمال کشف خطر 1-10)"
+                        label="D (?????? ??? ??? 1-10)"
                         value={formData.D}
                         onChange={(value) => updateField('D', String(value))}
                     />
                 </div>
             </FormSection>
 
-            <FormSection title="ارزیابی مجدد (در صورت اجرا شدن اقدام)">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormSection title="??????? ???? (?? ???? ???? ??? ?????)">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <NumberInput
-                        label="A جدید"
+                        label="A ????"
                         value={formData.reevalA}
                         onChange={(value) => updateField('reevalA', String(value))}
                     />
                     <NumberInput
-                        label="B جدید"
+                        label="B ????"
                         value={formData.reevalB}
                         onChange={(value) => updateField('reevalB', String(value))}
                     />
                     <NumberInput
-                        label="C جدید"
+                        label="C ????"
                         value={formData.reevalC}
                         onChange={(value) => updateField('reevalC', String(value))}
                     />
                     <NumberInput
-                        label="S جدید"
+                        label="S ????"
                         value={formData.reevalS}
                         onChange={(value) => updateField('reevalS', String(value))}
                     />
                     <NumberInput
-                        label="D جدید"
+                        label="D ????"
                         value={formData.reevalD}
                         onChange={(value) => updateField('reevalD', String(value))}
                     />
                     <TextInput
-                        label="شماره اقدام مرتبط"
+                        label="????? ????? ?????"
                         value={formData.reevalActionNumber}
                         onChange={(value) => updateField('reevalActionNumber', value)}
                     />
                 </div>
                 <p className="text-xs text-muted">
-                    برای ثبت ارزیابی مجدد باید همه مقادیر عددی تکمیل شوند؛ در غیر این صورت سامانه فقط ارزیابی اولیه را ذخیره می‌کند.
+                    ???? ??? ??????? ???? ???? ??? ?????? ???? ????? ????? ?? ??? ??? ???? ?????? ??? ??????? ????? ?? ????? ??????.
                 </p>
             </FormSection>
         </FormLayout>
