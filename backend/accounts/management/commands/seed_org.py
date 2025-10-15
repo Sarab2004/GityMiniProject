@@ -5,7 +5,8 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from accounts.models import PermissionEntry, UserProfile
+from accounts.models import PermissionEntry, RoleCatalog, UserProfile
+from accounts.role_utils import ensure_role_available, ensure_roles_exist, generate_display_name
 
 User = get_user_model()
 
@@ -41,11 +42,13 @@ class Command(BaseCommand):
         hse_can_create: bool = options["hse_can_create"]
         reset_password: bool = options["reset_password"]
 
+        roles = ensure_roles_exist()
+
         structure: List[Dict[str, Any]] = [
             {
                 "key": "ceo",
                 "username": "seed_ceo",
-                "display_name": "مدیرعامل",
+                "role_slug": "ceo",
                 "reports_to": None,
                 "permissions": [
                     {
@@ -74,7 +77,7 @@ class Command(BaseCommand):
             {
                 "key": "hse",
                 "username": "seed_hse",
-                "display_name": "مدیر HSE",
+                "role_slug": "hse_manager",
                 "reports_to": "ceo",
                 "permissions": [
                     {
@@ -103,7 +106,7 @@ class Command(BaseCommand):
             {
                 "key": "nurse",
                 "username": "seed_nurse",
-                "display_name": "پرستار",
+                "role_slug": "nurse",
                 "reports_to": "hse",
                 "permissions": [
                     {
@@ -153,28 +156,18 @@ class Command(BaseCommand):
                 if updated_fields:
                     user.save(update_fields=updated_fields)
 
-                profile: Optional[UserProfile]
                 try:
                     profile = user.profile
                 except UserProfile.DoesNotExist:
-                    profile = UserProfile.objects.create(
-                        user=user,
-                        display_name=spec["display_name"],
-                    )
+                    profile = UserProfile.objects.create(user=user, display_name="")
                 else:
-                    changed = False
-                    if profile.display_name != spec["display_name"]:
-                        profile.display_name = spec["display_name"]
-                        changed = True
                     if profile.is_deleted:
                         profile.is_deleted = False
-                        changed = True
-                    if changed:
-                        profile.save(update_fields=["display_name", "is_deleted", "updated_at"])
+                        profile.save(update_fields=["is_deleted", "updated_at"])
 
                 lookup[spec["key"]] = user
 
-            # Second pass: set reporting lines and permissions.
+            # Second pass: set reporting lines, roles, and permissions.
             for spec in structure:
                 user = lookup[spec["key"]]
                 profile = user.profile
@@ -183,6 +176,29 @@ class Command(BaseCommand):
                 if profile.reports_to != reports_to_user:
                     profile.reports_to = reports_to_user
                     profile.save(update_fields=["reports_to", "updated_at"])
+
+                role_slug = spec["role_slug"]
+                role = roles.get(role_slug)
+                if role is None:
+                    role = RoleCatalog.objects.get(slug=role_slug)
+
+                try:
+                    ensure_role_available(role, exclude_user_id=user.id)
+                except Exception:
+                    assigned_to_self = (
+                        profile.role_id == role.id if profile.role_id else False
+                    )
+                    if not assigned_to_self:
+                        raise
+
+                profile.role = role
+                profile.display_name = generate_display_name(
+                    role,
+                    reports_to_id=profile.reports_to_id,
+                    exclude_user_id=user.id,
+                )
+                profile.is_deleted = False
+                profile.save(update_fields=["role", "display_name", "is_deleted", "updated_at"])
 
                 resources = [entry["resource"] for entry in spec["permissions"]]
                 PermissionEntry.objects.filter(
@@ -207,7 +223,7 @@ class Command(BaseCommand):
     def _build_summary(self, usernames: List[str]) -> List[Dict[str, Any]]:
         users = (
             User.objects.filter(username__in=usernames)
-            .select_related("profile")
+            .select_related("profile", "profile__role")
             .prefetch_related("resource_permissions")
         )
         order_map = {username: index for index, username in enumerate(usernames)}
@@ -232,6 +248,7 @@ class Command(BaseCommand):
                     "id": user.id,
                     "username": user.username,
                     "display_name": profile.display_name if profile else "",
+                    "role_slug": profile.role.slug if profile and profile.role else None,
                     "reports_to_id": profile.reports_to_id if profile else None,
                     "permissions": permissions,
                 }

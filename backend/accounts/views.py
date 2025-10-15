@@ -10,7 +10,14 @@ from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import PermissionEntry, UserProfile, RESOURCE_CHOICES
+from .models import PermissionEntry, RoleCatalog, UserProfile, RESOURCE_CHOICES
+from .role_utils import (
+    ensure_role_available,
+    ensure_roles_exist,
+    generate_display_name,
+    iter_role_definitions,
+    validate_reports_to,
+)
 from .serializers import (
     AdminUserCreateSerializer,
     AdminUserSerializer,
@@ -20,6 +27,7 @@ from .serializers import (
     LoginSerializer,
     OrgNodeSerializer,
     PermissionEntrySerializer,
+    RoleCatalogSerializer,
     raise_profile_validation_error,
     _ReportsToField,
 )
@@ -95,11 +103,14 @@ def _compute_profile_level(profile):
 
 
 def _profile_to_node(profile):
+    role = getattr(profile, "role", None)
     return {
         "id": profile.user_id,
         "display_name": profile.display_name,
         "level": _compute_profile_level(profile),
         "parent_id": profile.reports_to_id,
+        "role_slug": role.slug if role else None,
+        "role_label": role.label if role else None,
         "children": [],
     }
 
@@ -107,7 +118,7 @@ def _profile_to_node(profile):
 def _build_org_tree(root_only):
     profiles = (
         UserProfile.objects.filter(is_deleted=False, user__is_active=True)
-        .select_related("user", "reports_to")
+        .select_related("user", "reports_to", "role")
         .order_by("user__id")
     )
 
@@ -246,15 +257,35 @@ class MeProfileView(APIView):
         user = request.user
         try:
             display_name = user.profile.display_name
+            role_obj = user.profile.role
         except UserProfile.DoesNotExist:
             display_name = None
+            role_obj = None
         data = {
             "username": user.username,
             "display_name": display_name,
             "is_staff": bool(user.is_staff),
             "is_superuser": bool(user.is_superuser),
+            "role": {
+                "slug": role_obj.slug,
+                "label": role_obj.label,
+            }
+            if role_obj
+            else None,
         }
         return Response(data)
+
+
+class RoleCatalogView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        ensure_roles_exist()
+        definitions = sorted(
+            iter_role_definitions(), key=lambda definition: definition.label.lower()
+        )
+        serializer = RoleCatalogSerializer(definitions, many=True)
+        return Response(serializer.data)
 
 
 class AdminUserViewSet(viewsets.ModelViewSet):
@@ -264,7 +295,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = (
             User.objects.all()
-            .select_related("profile")
+            .select_related("profile", "profile__role")
             .prefetch_related("resource_permissions")
         )
         search_term = self.request.query_params.get("search")
@@ -292,10 +323,32 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 
         permissions_payload = validated_data.pop("permissions", None)
         reports_to_user = validated_data.pop("reports_to_user", None)
+        role_slug = validated_data.pop("role_slug")
         password = validated_data.pop("password")
-        display_name = validated_data.pop("display_name").strip()
         email = validated_data.pop("email", "").strip()
         username = validated_data.pop("username")
+
+        try:
+            role = RoleCatalog.objects.select_related("parent").get(slug=role_slug)
+        except RoleCatalog.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"role_slug": "Selected role does not exist."}
+            ) from exc
+
+        try:
+            validate_reports_to(role, reports_to_user)
+        except DjangoValidationError as exc:
+            raise_profile_validation_error(exc)
+
+        try:
+            ensure_role_available(role)
+        except DjangoValidationError as exc:
+            raise_profile_validation_error(exc)
+
+        display_name = generate_display_name(
+            role,
+            reports_to_id=reports_to_user.id if reports_to_user else None,
+        )
 
         with transaction.atomic():
             user = User.objects.create_user(
@@ -306,10 +359,11 @@ class AdminUserViewSet(viewsets.ModelViewSet):
             profile = getattr(user, "profile", None)
             if profile is None:
                 profile = UserProfile.objects.create(
-                    user=user, display_name=display_name
+                    user=user, display_name=display_name, role=role
                 )
             profile.display_name = display_name
             profile.reports_to = reports_to_user
+            profile.role = role
             profile.is_deleted = False
             try:
                 profile.save()
@@ -333,20 +387,48 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         user = self.get_object()
-        serializer = self.get_serializer(data=request.data, partial=True)
+        serializer = self.get_serializer(
+            data=request.data, partial=True, context={"user": user}
+        )
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 
         with transaction.atomic():
-            if "display_name" in validated_data:
+            if "role_slug" in validated_data:
+                role_slug = validated_data["role_slug"]
+                try:
+                    role = RoleCatalog.objects.select_related("parent").get(
+                        slug=role_slug
+                    )
+                except RoleCatalog.DoesNotExist as exc:
+                    raise serializers.ValidationError(
+                        {"role_slug": "Selected role does not exist."}
+                    ) from exc
+
                 profile = getattr(user, "profile", None)
-                display_name = validated_data["display_name"].strip()
+
+                try:
+                    validate_reports_to(role, profile.reports_to if profile else None)
+                except DjangoValidationError as exc:
+                    raise_profile_validation_error(exc)
+
+                try:
+                    ensure_role_available(role, exclude_user_id=user.id)
+                except DjangoValidationError as exc:
+                    raise_profile_validation_error(exc)
+
+                display_name = generate_display_name(
+                    role,
+                    reports_to_id=profile.reports_to_id if profile else None,
+                    exclude_user_id=user.id,
+                )
                 if profile is None:
                     profile = UserProfile.objects.create(
-                        user=user, display_name=display_name
+                        user=user, display_name=display_name, role=role
                     )
                 else:
                     profile.display_name = display_name
+                    profile.role = role
                 try:
                     profile.save()
                 except DjangoValidationError as exc:
@@ -431,7 +513,7 @@ class RenamePayloadSerializer(serializers.Serializer):
 
 class OrganizationViewSet(viewsets.GenericViewSet):
     permission_classes = [permissions.IsAdminUser]
-    queryset = User.objects.select_related("profile", "profile__reports_to")
+    queryset = User.objects.select_related("profile", "profile__reports_to", "profile__role")
 
     @action(detail=False, methods=["get"], url_path="tree")
     def tree(self, request):
@@ -449,9 +531,35 @@ class OrganizationViewSet(viewsets.GenericViewSet):
         parent = validated_data["parent"]
         username = validated_data["username"]
         password = validated_data["password"]
-        display_name = validated_data["display_name"].strip()
+        role_slug = validated_data["role_slug"]
         email = validated_data.get("email", "").strip()
         permissions_payload = validated_data.get("initial_permissions")
+
+        try:
+            role = RoleCatalog.objects.select_related("parent").get(slug=role_slug)
+        except RoleCatalog.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"role_slug": "Selected role does not exist."}
+            ) from exc
+
+        try:
+            validate_reports_to(role, parent)
+        except DjangoValidationError as exc:
+            message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+            reports_errors = message_dict.get("reports_to") or exc.messages
+            raise serializers.ValidationError({"parent_id": reports_errors})
+
+        try:
+            ensure_role_available(role)
+        except DjangoValidationError as exc:
+            message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+            role_errors = message_dict.get("role") or exc.messages
+            raise serializers.ValidationError({"role_slug": role_errors})
+
+        display_name = generate_display_name(
+            role,
+            reports_to_id=parent.id if parent else None,
+        )
 
         with transaction.atomic():
             user = User.objects.create_user(
@@ -461,9 +569,12 @@ class OrganizationViewSet(viewsets.GenericViewSet):
             )
             profile = getattr(user, "profile", None)
             if profile is None:
-                profile = UserProfile.objects.create(user=user, display_name=display_name)
+                profile = UserProfile.objects.create(
+                    user=user, display_name=display_name, role=role
+                )
             profile.display_name = display_name
             profile.reports_to = parent
+            profile.role = role
             profile.is_deleted = False
             try:
                 profile.save()
@@ -490,6 +601,17 @@ class OrganizationViewSet(viewsets.GenericViewSet):
             return Response(
                 {"detail": "User profile not found."}, status=status.HTTP_400_BAD_REQUEST
             )
+
+        if profile.role:
+            try:
+                validate_reports_to(profile.role, new_parent)
+            except DjangoValidationError as exc:
+                message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+                reports_errors = message_dict.get("reports_to") or exc.messages
+                return Response(
+                    {"parent_id": reports_errors},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         profile.reports_to = new_parent
         try:

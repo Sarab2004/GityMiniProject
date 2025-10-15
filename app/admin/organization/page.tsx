@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import OrgTree from "@/app/ui/admin/OrgTree";
 import PermissionMatrix from "@/app/ui/admin/PermissionMatrix";
 import ConfirmDialog from "@/app/ui/admin/ConfirmDialog";
-import type { OrgNode, PermissionEntry, Resource } from "@/types/admin";
+import type { OrgNode, PermissionEntry, Resource, RoleCatalogEntry } from "@/types/admin";
 import {
   createChildUser,
   deleteUserFromOrg,
   getOrgTree,
+  getRoleCatalog,
   moveUser,
   renameUser,
 } from "@/lib/api/admin";
@@ -19,7 +20,7 @@ const RESOURCES: Resource[] = ["forms", "actions", "archive"];
 interface CreateChildState {
   username: string;
   password: string;
-  display_name: string;
+  role_slug: string;
   email: string;
   permissions: PermissionEntry[];
 }
@@ -41,13 +42,14 @@ function ensureTreeArray(data: OrgNode[] | OrgNode | undefined): OrgNode[] {
 
 function flattenTree(
   nodes: OrgNode[],
-  acc: Array<{ id: number; display_name: string; level: number }> = [],
-): Array<{ id: number; display_name: string; level: number }> {
+  acc: Array<{ id: number; display_name: string; level: number; role_slug?: string | null }> = [],
+): Array<{ id: number; display_name: string; level: number; role_slug?: string | null }> {
   nodes.forEach((node) => {
     acc.push({
       id: node.id,
       display_name: node.display_name,
       level: node.level ?? 0,
+      role_slug: node.role_slug ?? null,
     });
     if (node.children?.length) {
       flattenTree(node.children, acc);
@@ -65,7 +67,7 @@ export default function AdminOrganizationPage() {
   const [addForm, setAddForm] = useState<CreateChildState>({
     username: "",
     password: "",
-    display_name: "",
+    role_slug: "",
     email: "",
     permissions: defaultPermissions(),
   });
@@ -81,6 +83,10 @@ export default function AdminOrganizationPage() {
   const [moveParentId, setMoveParentId] = useState<number | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
+
+  const [roles, setRoles] = useState<RoleCatalogEntry[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesError, setRolesError] = useState<string | null>(null);
 
   const [deleteNodeState, setDeleteNodeState] = useState<OrgNode | null>(null);
   const [deleteForce, setDeleteForce] = useState(false);
@@ -116,16 +122,139 @@ export default function AdminOrganizationPage() {
     fetchTree();
   }, [fetchTree]);
 
+  useEffect(() => {
+    const loadRoles = async () => {
+      setRolesLoading(true);
+      try {
+        const data = await getRoleCatalog();
+        setRoles(data);
+        setRolesError(null);
+      } catch (err) {
+        setRolesError(
+          err instanceof Error ? err.message : "Failed to load role catalog.",
+        );
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    loadRoles();
+  }, []);
+
+  const roleLookup = useMemo(() => {
+    const map = new Map<string, RoleCatalogEntry>();
+    roles.forEach((role) => map.set(role.slug, role));
+    return map;
+  }, [roles]);
+
+  const assignedUniqueRoles = useMemo(() => {
+    const result = new Set<string>();
+    const traverse = (nodes: OrgNode[]) => {
+      nodes.forEach((node) => {
+        if (node.role_slug) {
+          const role = roleLookup.get(node.role_slug);
+          if (role?.is_unique) {
+            result.add(node.role_slug);
+          }
+        }
+        if (node.children?.length) {
+          traverse(node.children);
+        }
+      });
+    };
+    traverse(treeData);
+    return result;
+  }, [treeData, roleLookup]);
+
+  const addAllowedRoles = useMemo(() => {
+    if (!addParentNode) {
+      return roles;
+    }
+    const parentSlug = addParentNode.role_slug ?? null;
+    return roles.filter((role) => role.parent_slug === parentSlug);
+  }, [roles, addParentNode]);
+
+  const noAddRolesAvailable =
+    Boolean(addParentNode) && addAllowedRoles.length === 0;
+
+  useEffect(() => {
+    if (!addParentNode) {
+      return;
+    }
+    if (addAllowedRoles.length === 0) {
+      if (addForm.role_slug !== "") {
+        setAddForm((prev) => ({ ...prev, role_slug: "" }));
+      }
+      return;
+    }
+    if (!addAllowedRoles.some((role) => role.slug === addForm.role_slug)) {
+      setAddForm((prev) => ({ ...prev, role_slug: addAllowedRoles[0].slug }));
+    }
+  }, [addParentNode, addAllowedRoles, addForm.role_slug]);
+
+  const addRoleSelectDisabled =
+    rolesLoading || !addParentNode || addAllowedRoles.length === 0;
+
+  const addParentRoleDefinition = addParentNode?.role_slug
+    ? roleLookup.get(addParentNode.role_slug) ?? null
+    : null;
+
   const handleOpenAddChild = (node: OrgNode) => {
     setAddParentNode(node);
     setAddForm({
       username: "",
       password: "",
-      display_name: "",
+      role_slug: "",
       email: "",
       permissions: defaultPermissions(),
     });
     setAddError(null);
+  };
+
+  const handleAddUsernameChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setAddForm((prev) => ({ ...prev, username: event.target.value }));
+  };
+
+  const handleAddPasswordChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setAddForm((prev) => ({ ...prev, password: event.target.value }));
+  };
+
+  const handleAddRoleChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    setAddForm((prev) => ({ ...prev, role_slug: event.target.value }));
+  };
+
+  const handleAddEmailChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setAddForm((prev) => ({ ...prev, email: event.target.value }));
+  };
+
+const handleAddPermissionsChange = (permissions: PermissionEntry[]) => {
+  setAddForm((prev) => ({ ...prev, permissions }));
+};
+
+  const handleRenameValueChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setRenameValue(event.target.value);
+  };
+
+  const handleMoveParentChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const { value } = event.target;
+    setMoveParentId(value ? Number(value) : null);
+  };
+
+  const handleDeleteForceChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setDeleteForce(event.target.checked);
   };
 
   const handleSubmitAddChild = async (
@@ -140,7 +269,7 @@ export default function AdminOrganizationPage() {
         parent_id: addParentNode.id,
         username: addForm.username.trim(),
         password: addForm.password,
-        display_name: addForm.display_name.trim(),
+        role_slug: addForm.role_slug,
         email: addForm.email.trim() || undefined,
         permissions: addForm.permissions,
       });
@@ -154,6 +283,67 @@ export default function AdminOrganizationPage() {
       setAddLoading(false);
     }
   };
+
+  const moveTargetRoleDefinition = moveNodeState?.role_slug
+    ? roleLookup.get(moveNodeState.role_slug) ?? null
+    : null;
+
+  const moveExpectedParentSlug = moveTargetRoleDefinition?.parent_slug ?? null;
+
+  const moveAllowedParents = useMemo(() => {
+    if (!moveNodeState) {
+      return [];
+    }
+    if (moveExpectedParentSlug === null) {
+      return [];
+    }
+    return flattenedNodes.filter(
+      (node) =>
+        node.id !== moveNodeState.id &&
+        node.role_slug === moveExpectedParentSlug,
+    );
+  }, [moveNodeState, moveExpectedParentSlug, flattenedNodes]);
+
+  const moveParentRoleDefinition = moveExpectedParentSlug
+    ? roleLookup.get(moveExpectedParentSlug) ?? null
+    : null;
+
+  const moveNoParentsAvailable =
+    Boolean(moveNodeState) &&
+    moveExpectedParentSlug !== null &&
+    moveAllowedParents.length === 0;
+
+  useEffect(() => {
+    if (!moveNodeState) {
+      return;
+    }
+    if (moveExpectedParentSlug === null) {
+      if (moveParentId !== null) {
+        setMoveParentId(null);
+      }
+      return;
+    }
+    if (
+      moveParentId !== null &&
+      !moveAllowedParents.some((node) => node.id === moveParentId)
+    ) {
+      setMoveParentId(
+        moveAllowedParents.length ? moveAllowedParents[0].id : null,
+      );
+    }
+  }, [
+    moveNodeState,
+    moveExpectedParentSlug,
+    moveAllowedParents,
+    moveParentId,
+  ]);
+
+  const moveRequiresParentSelection = moveExpectedParentSlug !== null;
+
+  const moveSubmitDisabled =
+    moveLoading ||
+    (moveRequiresParentSelection &&
+      (moveParentId === null || moveAllowedParents.length === 0));
 
   const handleOpenRename = (node: OrgNode) => {
     setRenameNodeState(node);
@@ -231,7 +421,9 @@ export default function AdminOrganizationPage() {
   const addDisabled =
     !addForm.username.trim() ||
     !addForm.password ||
-    !addForm.display_name.trim() ||
+    !addForm.role_slug ||
+    noAddRolesAvailable ||
+    rolesLoading ||
     addLoading;
   const renameDisabled = !renameValue.trim() || renameLoading;
 
@@ -315,13 +507,8 @@ export default function AdminOrganizationPage() {
                   <input
                     type="text"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={addForm.username}
-                    onChange={(event) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        username: event.currentTarget.value,
-                      }))
-                    }
+                    value={addForm.username ?? ""}
+                    onChange={handleAddUsernameChange}
                     required
                   />
                 </div>
@@ -332,32 +519,61 @@ export default function AdminOrganizationPage() {
                   <input
                     type="password"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={addForm.password}
-                    onChange={(event) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        password: event.currentTarget.value,
-                      }))
-                    }
+                    value={addForm.password ?? ""}
+                    onChange={handleAddPasswordChange}
                     required
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Display Name *
+                    نقش *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={addForm.display_name}
-                    onChange={(event) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        display_name: event.currentTarget.value,
-                      }))
-                    }
+                    value={addForm.role_slug ?? ""}
+                    onChange={handleAddRoleChange}
+                    disabled={addRoleSelectDisabled}
                     required
-                  />
+                  >
+                    <option value="">
+                      {rolesLoading
+                        ? "در حال بارگذاری نقش‌ها..."
+                        : noAddRolesAvailable
+                        ? "هیچ نقشی برای این والد تعریف نشده است"
+                        : "انتخاب نقش"}
+                    </option>
+                    {addAllowedRoles.map((role) => {
+                      const disabled =
+                        role.is_unique && assignedUniqueRoles.has(role.slug);
+                      return (
+                        <option key={role.slug} value={role.slug} disabled={disabled}>
+                          {role.label}
+                          {role.is_unique ? " (یکتا)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {addParentNode ? (
+                    <p className="text-xs text-slate-500">
+                      فقط نقش‌هایی که والد آن‌ها{" "}
+                      {addParentNode.role_label ??
+                        addParentRoleDefinition?.label ??
+                        "—"}
+                      است نمایش داده می‌شوند.
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-slate-500">
+                    نام نمایش به‌صورت خودکار توسط سرور ساخته می‌شود.
+                  </p>
+                  {noAddRolesAvailable ? (
+                    <p className="text-xs text-amber-600">
+                      برای این والد نقشی تعریف نشده است؛ ابتدا والد یا ساختار
+                      بالادستی را تکمیل کنید.
+                    </p>
+                  ) : null}
+                  {rolesError ? (
+                    <p className="text-sm text-rose-600">{rolesError}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
@@ -366,13 +582,8 @@ export default function AdminOrganizationPage() {
                   <input
                     type="email"
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={addForm.email}
-                    onChange={(event) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        email: event.currentTarget.value,
-                      }))
-                    }
+                    value={addForm.email ?? ""}
+                    onChange={handleAddEmailChange}
                   />
                 </div>
               </div>
@@ -388,9 +599,7 @@ export default function AdminOrganizationPage() {
                 </div>
                 <PermissionMatrix
                   value={addForm.permissions}
-                  onChange={(permissions) =>
-                    setAddForm((prev) => ({ ...prev, permissions }))
-                  }
+                  onChange={handleAddPermissionsChange}
                 />
               </div>
 
@@ -446,8 +655,8 @@ export default function AdminOrganizationPage() {
                 <input
                   type="text"
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  value={renameValue}
-                  onChange={(event) => setRenameValue(event.currentTarget.value)}
+                  value={renameValue ?? ""}
+                  onChange={handleRenameValueChange}
                   required
                 />
               </div>
@@ -504,13 +713,16 @@ export default function AdminOrganizationPage() {
                 <select
                   className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   value={moveParentId === null ? "" : String(moveParentId)}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setMoveParentId(value ? Number(value) : null);
-                  }}
+                  onChange={handleMoveParentChange}
                 >
-                  <option value="">— No parent (root) —</option>
-                  {flattenedNodes.map((node) => (
+                  <option value="">
+                    {moveExpectedParentSlug === null
+                      ? "No parent (root)"
+                      : moveNoParentsAvailable
+                      ? "No eligible parent available"
+                      : "Select parent"}
+                  </option>
+                  {moveAllowedParents.map((node) => (
                     <option
                       key={node.id}
                       value={node.id}
@@ -528,9 +740,14 @@ export default function AdminOrganizationPage() {
                 </div>
               ) : (
                 <p className="text-xs text-slate-500">
-                  Moving into one of its own descendants is blocked by the
-                  backend validator. Select another parent if you encounter an
-                  error.
+                  {moveExpectedParentSlug === null
+                    ? "This role is defined as a root-level position. Choose the root option to detach it from any manager."
+                    : moveNoParentsAvailable
+                    ? "No eligible parent with the required role exists yet. Create the parent first, then retry."
+                    : `Only nodes with role ${
+                        moveParentRoleDefinition?.label ??
+                        moveExpectedParentSlug
+                      } can be selected as the parent.`}
                 </p>
               )}
 
@@ -546,7 +763,7 @@ export default function AdminOrganizationPage() {
                 <button
                   type="submit"
                   className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  disabled={moveLoading}
+                  disabled={moveSubmitDisabled}
                 >
                   {moveLoading ? "Saving..." : "Save"}
                 </button>
@@ -584,7 +801,7 @@ export default function AdminOrganizationPage() {
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                 checked={deleteForce}
-                onChange={(event) => setDeleteForce(event.currentTarget.checked)}
+                onChange={handleDeleteForceChange}
                 disabled={deleteLoading}
               />
               Force delete (remove even if children exist)

@@ -9,6 +9,7 @@ from .views import (
     MePermissionsView,
     MeProfileView,
     OrganizationViewSet,
+    RoleCatalogView,
 )
 
 router = DefaultRouter()
@@ -21,6 +22,7 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="auth-me"),
     path("me/permissions/", MePermissionsView.as_view(), name="auth-me-permissions"),
     path("me/profile/", MeProfileView.as_view(), name="auth-me-profile"),
+    path("admin/roles/", RoleCatalogView.as_view(), name="auth-admin-roles"),
 ]
 
 urlpatterns += router.urls

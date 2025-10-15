@@ -14,6 +14,7 @@ export interface AdminUser {
   email?: string;
   is_active: boolean;
   display_name: string;
+  role?: RoleCatalogEntry | null;
   reports_to_id?: number | null;
   permissions: PermissionEntry[];
 }
@@ -23,5 +24,14 @@ export interface OrgNode {
   display_name: string;
   parent_id?: number | null;
   level: number;
+  role_slug?: string | null;
+  role_label?: string | null;
   children?: OrgNode[];
+}
+
+export interface RoleCatalogEntry {
+  slug: string;
+  label: string;
+  parent_slug?: string | null;
+  is_unique: boolean;
 }

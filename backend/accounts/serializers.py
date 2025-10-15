@@ -1,8 +1,16 @@
+from typing import Optional
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import PermissionEntry, UserProfile
+from .models import PermissionEntry, RoleCatalog, UserProfile
+from .role_utils import (
+    ROLE_DEFINITION_MAP,
+    ensure_role_available,
+    ensure_roles_exist,
+    validate_reports_to,
+)
 
 
 User = get_user_model()
@@ -35,6 +43,23 @@ class PermissionEntrySerializer(serializers.ModelSerializer):
         fields = ["resource", "can_create", "can_read", "can_update", "can_delete"]
 
 
+class RoleCatalogSerializer(serializers.Serializer):
+    slug = serializers.SlugField()
+    label = serializers.CharField()
+    parent_slug = serializers.CharField(allow_null=True)
+    is_unique = serializers.BooleanField()
+
+
+def _get_role_for_slug(value: str) -> RoleCatalog:
+    if value not in ROLE_DEFINITION_MAP:
+        raise serializers.ValidationError("Selected role does not exist.")
+    ensure_roles_exist()
+    try:
+        return RoleCatalog.objects.get(slug=value)
+    except RoleCatalog.DoesNotExist as exc:
+        raise serializers.ValidationError("Selected role does not exist.") from exc
+
+
 class AdminUserSerializer(serializers.ModelSerializer):
     display_name = serializers.CharField(source="profile.display_name")
     reports_to_id = serializers.IntegerField(
@@ -43,6 +68,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     permissions = PermissionEntrySerializer(
         source="resource_permissions", many=True, read_only=True
     )
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -52,9 +78,22 @@ class AdminUserSerializer(serializers.ModelSerializer):
             "email",
             "is_active",
             "display_name",
+            "role",
             "reports_to_id",
             "permissions",
         ]
+
+    def get_role(self, obj):
+        profile = getattr(obj, "profile", None)
+        if not profile or not profile.role:
+            return None
+        parent_slug = profile.role.parent.slug if profile.role.parent else None
+        return {
+            "slug": profile.role.slug,
+            "label": profile.role.label,
+            "parent_slug": parent_slug,
+            "is_unique": profile.role.is_unique,
+        }
 
 
 class _ReportsToField(serializers.PrimaryKeyRelatedField):
@@ -70,7 +109,7 @@ class AdminUserCreateSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    display_name = serializers.CharField(max_length=150)
+    role_slug = serializers.SlugField()
     reports_to_id = _ReportsToField(
         queryset=User.objects.all(),
         required=False,
@@ -79,9 +118,24 @@ class AdminUserCreateSerializer(serializers.Serializer):
     )
     permissions = PermissionEntrySerializer(many=True, required=False)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._selected_role: Optional[RoleCatalog] = None
+
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Username is already in use.")
+        return value
+
+    def validate_role_slug(self, value):
+        role = _get_role_for_slug(value)
+        try:
+            ensure_role_available(role)
+        except DjangoValidationError as exc:
+            message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+            role_errors = message_dict.get("role") or exc.messages
+            raise serializers.ValidationError(role_errors)
+        self._selected_role = role
         return value
 
     def validate_permissions(self, value):
@@ -100,29 +154,52 @@ class AdminUserCreateSerializer(serializers.Serializer):
             resources.add(resource)
 
     def validate(self, attrs):
-        # Ensure display name is not empty or whitespace
-        display_name = attrs.get("display_name")
-        if display_name and not display_name.strip():
-            raise serializers.ValidationError(
-                {"display_name": "Display name cannot be blank."}
+        role_slug = attrs.get("role_slug")
+        reports_to_user = attrs.get("reports_to_user")
+
+        if role_slug:
+            role = (
+                self._selected_role
+                if self._selected_role and self._selected_role.slug == role_slug
+                else _get_role_for_slug(role_slug)
             )
+            try:
+                validate_reports_to(role, reports_to_user)
+            except DjangoValidationError as exc:
+                message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+                reports_errors = message_dict.get("reports_to") or exc.messages
+                raise serializers.ValidationError({"reports_to_id": reports_errors})
+
         return attrs
 
 
 class AdminUserUpdateSerializer(serializers.Serializer):
-    display_name = serializers.CharField(max_length=150, required=False)
+    role_slug = serializers.SlugField(required=False)
     permissions = PermissionEntrySerializer(many=True, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._selected_role: Optional[RoleCatalog] = None
 
     def validate(self, attrs):
         if not attrs:
             raise serializers.ValidationError(
-                "At least one of display_name or permissions must be provided."
+                "At least one of role_slug or permissions must be provided."
             )
         return attrs
 
-    def validate_display_name(self, value):
-        if value and not value.strip():
-            raise serializers.ValidationError("Display name cannot be blank.")
+    def validate_role_slug(self, value):
+        role = _get_role_for_slug(value)
+
+        user = self.context.get("user")
+        exclude_user_id = user.id if user else None
+        try:
+            ensure_role_available(role, exclude_user_id=exclude_user_id)
+        except DjangoValidationError as exc:
+            message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+            role_errors = message_dict.get("role") or exc.messages
+            raise serializers.ValidationError(role_errors)
+        self._selected_role = role
         return value
 
     def validate_permissions(self, value):
@@ -135,6 +212,9 @@ def raise_profile_validation_error(exc: DjangoValidationError):
     reports_to_errors = message_dict.get("reports_to")
     if reports_to_errors:
         raise serializers.ValidationError({"reports_to_id": reports_to_errors})
+    role_errors = message_dict.get("role")
+    if role_errors:
+        raise serializers.ValidationError({"role_slug": role_errors})
     raise serializers.ValidationError(message_dict or exc.messages)
 
 
@@ -143,6 +223,8 @@ class OrgNodeSerializer(serializers.Serializer):
     display_name = serializers.CharField()
     level = serializers.IntegerField()
     parent_id = serializers.IntegerField(allow_null=True)
+    role_slug = serializers.CharField(allow_null=True, required=False)
+    role_label = serializers.CharField(allow_null=True, required=False)
     children = serializers.SerializerMethodField()
 
     def get_children(self, instance):
@@ -158,20 +240,30 @@ class CreateChildUserSerializer(serializers.Serializer):
     )
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True)
-    display_name = serializers.CharField(max_length=150)
+    role_slug = serializers.SlugField()
     email = serializers.EmailField(required=False, allow_blank=True)
     initial_permissions = PermissionEntrySerializer(
         many=True, required=False, allow_empty=True
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._selected_role: Optional[RoleCatalog] = None
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("Username is already in use.")
         return value
 
-    def validate_display_name(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("Display name cannot be blank.")
+    def validate_role_slug(self, value):
+        role = _get_role_for_slug(value)
+        try:
+            ensure_role_available(role)
+        except DjangoValidationError as exc:
+            message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+            role_errors = message_dict.get("role") or exc.messages
+            raise serializers.ValidationError(role_errors)
+        self._selected_role = role
         return value
 
     def validate_initial_permissions(self, value):
@@ -186,3 +278,20 @@ class CreateChildUserSerializer(serializers.Serializer):
         if profile.is_deleted:
             raise serializers.ValidationError("Selected parent user is deleted.")
         return value
+
+    def validate(self, attrs):
+        role_slug = attrs.get("role_slug")
+        parent = attrs.get("parent")
+        if role_slug:
+            role = (
+                self._selected_role
+                if self._selected_role and self._selected_role.slug == role_slug
+                else _get_role_for_slug(role_slug)
+            )
+            try:
+                validate_reports_to(role, parent)
+            except DjangoValidationError as exc:
+                message_dict = exc.message_dict if hasattr(exc, "message_dict") else {}
+                reports_errors = message_dict.get("reports_to") or exc.messages
+                raise serializers.ValidationError({"parent_id": reports_errors})
+        return attrs

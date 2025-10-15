@@ -5,9 +5,15 @@ import {
   createAdminUser,
   deleteAdminUser,
   getAdminUsers,
+  getRoleCatalog,
   updateAdminUser,
 } from "@/lib/api/admin";
-import type { AdminUser, PermissionEntry, Resource } from "@/types/admin";
+import type {
+  AdminUser,
+  PermissionEntry,
+  Resource,
+  RoleCatalogEntry,
+} from "@/types/admin";
 import PermissionMatrix from "@/app/ui/admin/PermissionMatrix";
 import ConfirmDialog from "@/app/ui/admin/ConfirmDialog";
 
@@ -17,7 +23,7 @@ interface CreateFormState {
   username: string;
   password: string;
   email: string;
-  display_name: string;
+  role_slug: string;
   reports_to_id: number | null;
 }
 
@@ -71,7 +77,7 @@ export default function AdminUsersPage() {
     username: "",
     password: "",
     email: "",
-    display_name: "",
+    role_slug: "",
     reports_to_id: null,
   });
   const [createPermissions, setCreatePermissions] = useState<
@@ -81,12 +87,15 @@ export default function AdminUsersPage() {
   const [createLoading, setCreateLoading] = useState(false);
 
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
-  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editRoleSlug, setEditRoleSlug] = useState("");
   const [editPermissions, setEditPermissions] = useState<PermissionEntry[]>(
     defaultPermissions,
   );
   const [editError, setEditError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [roles, setRoles] = useState<RoleCatalogEntry[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesError, setRolesError] = useState<string | null>(null);
 
   const [deleteUserState, setDeleteUserState] = useState<AdminUser | null>(
     null,
@@ -100,6 +109,72 @@ export default function AdminUsersPage() {
     users.forEach((user) => map.set(user.id, user));
     return map;
   }, [users]);
+
+  const assignedUniqueRoles = useMemo(() => {
+    const set = new Set<string>();
+    users.forEach((user) => {
+      if (user.role?.slug && user.role.is_unique) {
+        set.add(user.role.slug);
+      }
+    });
+    return set;
+  }, [users]);
+
+  const roleLookup = useMemo(() => {
+    const map = new Map<string, RoleCatalogEntry>();
+    roles.forEach((role) => map.set(role.slug, role));
+    return map;
+  }, [roles]);
+
+  const selectedCreateRole = createForm.role_slug
+    ? roleLookup.get(createForm.role_slug) ?? null
+    : null;
+
+  const requiredParentRole = selectedCreateRole?.parent_slug
+    ? roleLookup.get(selectedCreateRole.parent_slug) ?? null
+    : null;
+
+  const createParentOptions = useMemo(() => {
+    if (!selectedCreateRole) {
+      return users;
+    }
+    if (!selectedCreateRole.parent_slug) {
+      return [];
+    }
+    return users.filter(
+      (user) => user.role?.slug === selectedCreateRole.parent_slug,
+    );
+  }, [users, selectedCreateRole]);
+
+  const requiresParentSelection = Boolean(selectedCreateRole?.parent_slug);
+  const createParentDisabled =
+    rolesLoading || !selectedCreateRole || !requiresParentSelection;
+
+  useEffect(() => {
+    if (!selectedCreateRole || !selectedCreateRole.parent_slug) {
+      if (createForm.reports_to_id !== null) {
+        setCreateForm((prev) => ({ ...prev, reports_to_id: null }));
+      }
+      return;
+    }
+    if (
+      createParentOptions.length === 1 &&
+      createParentOptions[0].id !== createForm.reports_to_id
+    ) {
+      setCreateForm((prev) => ({
+        ...prev,
+        reports_to_id: createParentOptions[0].id,
+      }));
+    }
+  }, [
+    selectedCreateRole,
+    createParentOptions,
+    createForm.reports_to_id,
+    setCreateForm,
+  ]);
+
+  const createParentValue =
+    createForm.reports_to_id === null ? "" : String(createForm.reports_to_id);
 
   const formatError = (err: unknown, fallback: string) => {
     if (err instanceof Error) {
@@ -127,12 +202,28 @@ export default function AdminUsersPage() {
     loadUsers();
   }, [loadUsers]);
 
+  useEffect(() => {
+    const fetchRoles = async () => {
+      setRolesLoading(true);
+      try {
+        const data = await getRoleCatalog();
+        setRoles(data);
+        setRolesError(null);
+      } catch (err) {
+        setRolesError(formatError(err, "دریافت نقش‌ها با خطا مواجه شد."));
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    fetchRoles();
+  }, []);
+
   const handleOpenCreate = () => {
     setCreateForm({
       username: "",
       password: "",
       email: "",
-      display_name: "",
+      role_slug: "",
       reports_to_id: null,
     });
     setCreatePermissions(defaultPermissions());
@@ -154,11 +245,13 @@ export default function AdminUsersPage() {
     setCreateForm((prev) => ({ ...prev, password: value }));
   };
 
-  const handleDisplayNameChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleRoleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { value } = event.target;
-    setCreateForm((prev) => ({ ...prev, display_name: value }));
+    setCreateForm((prev) => ({
+      ...prev,
+      role_slug: value,
+      reports_to_id: null,
+    }));
   };
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,7 +277,7 @@ export default function AdminUsersPage() {
       await createAdminUser({
         username: createForm.username.trim(),
         password: createForm.password,
-        display_name: createForm.display_name.trim(),
+        role_slug: createForm.role_slug,
         email: createForm.email.trim() || undefined,
         reports_to_id: createForm.reports_to_id ?? undefined,
         permissions: createPermissions,
@@ -200,9 +293,16 @@ export default function AdminUsersPage() {
 
   const handleOpenEdit = (user: AdminUser) => {
     setEditUser(user);
-    setEditDisplayName(user.display_name);
+    setEditRoleSlug(user.role?.slug ?? "");
     setEditPermissions(ensurePermissions(user.permissions));
     setEditError(null);
+  };
+
+  const handleEditRoleChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const { value } = event.target;
+    setEditRoleSlug(value);
   };
 
   const handleSubmitEdit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -212,10 +312,11 @@ export default function AdminUsersPage() {
     setEditError(null);
     try {
       await updateAdminUser(editUser.id, {
-        display_name: editDisplayName.trim(),
+        role_slug: editRoleSlug,
         permissions: editPermissions,
       });
       setEditUser(null);
+      setEditRoleSlug("");
       await loadUsers();
     } catch (err) {
       setEditError(formatError(err, "به‌روزرسانی کاربر با خطا مواجه شد."));
@@ -240,13 +341,17 @@ export default function AdminUsersPage() {
     }
   };
 
+  const missingRequiredParent =
+    requiresParentSelection && createForm.reports_to_id === null;
+
   const createDisabled =
     !createForm.username.trim() ||
     !createForm.password ||
-    !createForm.display_name.trim() ||
+    !createForm.role_slug ||
+    missingRequiredParent ||
     createLoading;
   const editDisabled =
-    !editDisplayName.trim() || editLoading || editUser === null;
+    editLoading || editUser === null || !editRoleSlug;
 
   return (
     <section className="space-y-6">
@@ -306,6 +411,9 @@ export default function AdminUsersPage() {
                   Display Name
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  Role
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
                   Username
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
@@ -323,7 +431,7 @@ export default function AdminUsersPage() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     در حال دریافت داده‌ها...
@@ -332,7 +440,7 @@ export default function AdminUsersPage() {
               ) : users.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     کاربری یافت نشد.
@@ -347,6 +455,9 @@ export default function AdminUsersPage() {
                     <tr key={user.id}>
                       <td className="px-4 py-3 text-sm font-medium text-slate-800">
                         {user.display_name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {user.role?.label ?? "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {user.username}
@@ -364,7 +475,7 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
-                        {manager ? manager.display_name : "—"}
+                        {manager ? manager.display_name : "-"}
                       </td>
                       <td className="px-4 py-3 text-right text-sm">
                         <div className="flex justify-end gap-2">
@@ -446,16 +557,33 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Display Name *
+                    نقش *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.display_name ?? ""}
-                    onChange={handleDisplayNameChange}
+                    value={createForm.role_slug}
+                    onChange={handleRoleChange}
+                    disabled={rolesLoading}
                     required
-                  />
-                </div>
+                  >
+                    <option value="">
+                      {rolesLoading ? "در حال بارگذاری نقش‌ها..." : "انتخاب نقش"}
+                    </option>
+                {roles.map((role) => {
+                  const disabled =
+                    role.is_unique && assignedUniqueRoles.has(role.slug);
+                  return (
+                    <option key={role.slug} value={role.slug} disabled={disabled}>
+                      {role.label}
+                      {role.is_unique ? " (یکتا)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              {rolesError ? (
+                <p className="text-sm text-rose-600">{rolesError}</p>
+              ) : null}
+            </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
                     Email
@@ -473,20 +601,51 @@ export default function AdminUsersPage() {
                   </label>
                   <select
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={
-                      createForm.reports_to_id === null
-                        ? ""
-                        : String(createForm.reports_to_id)
-                    }
+                    value={createParentValue}
                     onChange={handleReportsToChange}
+                    disabled={createParentDisabled}
                   >
-                    <option value="">— بدون مدیر —</option>
-                    {users.map((user) => (
+                    <option value="">
+                      {rolesLoading
+                        ? "در حال بارگذاری مدیران..."
+                        : !selectedCreateRole
+                        ? "ابتدا نقش را انتخاب کنید"
+                        : requiresParentSelection
+                        ? "یک مدیر مجاز را انتخاب کنید"
+                        : "این نقش مدیر مستقیم نیاز ندارد"}
+                    </option>
+                    {createParentOptions.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.display_name} ({user.username})
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs text-slate-500">
+                    نام نمایش به‌صورت خودکار توسط سرور ساخته می‌شود.
+                  </p>
+                  {requiresParentSelection ? (
+                    createParentOptions.length === 0 ? (
+                      <p className="text-xs text-amber-600">
+                        هیچ مدیری با نقش{" "}
+                        {requiredParentRole?.label ??
+                          selectedCreateRole?.parent_slug ??
+                          "-"}
+                        در دسترس نیست.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        فقط کاربرانی با نقش{" "}
+                        {requiredParentRole?.label ??
+                          selectedCreateRole?.parent_slug ??
+                          "-"}
+                        نمایش داده می‌شوند.
+                      </p>
+                    )
+                  ) : selectedCreateRole ? (
+                    <p className="text-xs text-slate-500">
+                      این نقش نیازی به انتخاب مدیر ندارد.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -547,7 +706,10 @@ export default function AdminUsersPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setEditUser(null)}
+                onClick={() => {
+                  setEditUser(null);
+                  setEditRoleSlug("");
+                }}
                 className="text-sm text-slate-500 hover:text-slate-700"
                 disabled={editLoading}
               >
@@ -558,15 +720,34 @@ export default function AdminUsersPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Display Name *
+                    نقش
                   </label>
-                  <input
-                    type="text"
+                  <select
                     className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={editDisplayName}
-                    onChange={(event) => setEditDisplayName(event.target.value)}
+                    value={editRoleSlug}
+                    onChange={handleEditRoleChange}
+                    disabled={rolesLoading}
                     required
-                  />
+                  >
+                    <option value="">
+                      {rolesLoading ? "در حال بارگذاری نقش‌ها..." : "انتخاب نقش"}
+                    </option>
+                    {roles.map((role) => {
+                      const disabled =
+                        role.is_unique &&
+                        assignedUniqueRoles.has(role.slug) &&
+                        role.slug !== (editUser?.role?.slug ?? "");
+                      return (
+                        <option key={role.slug} value={role.slug} disabled={disabled}>
+                          {role.label}
+                          {role.is_unique ? " (یکتا)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {rolesError ? (
+                    <p className="text-sm text-rose-600">{rolesError}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -594,7 +775,10 @@ export default function AdminUsersPage() {
               <div className="mt-6 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditUser(null)}
+                  onClick={() => {
+                    setEditUser(null);
+                    setEditRoleSlug("");
+                  }}
                   className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   disabled={editLoading}
                 >

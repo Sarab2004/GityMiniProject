@@ -4,6 +4,7 @@ import {
   OrgNode,
   PermissionEntry,
   Resource,
+  RoleCatalogEntry,
 } from "../../types/admin";
 
 export type PermissionMatrix = Record<
@@ -42,7 +43,7 @@ export async function getAdminUsers(search?: string): Promise<AdminUser[]> {
 export interface CreateAdminUserPayload {
   username: string;
   password: string;
-  display_name: string;
+  role_slug: string;
   email?: string;
   reports_to_id?: number | null;
   permissions?: PermissionEntry[];
@@ -54,7 +55,7 @@ export async function createAdminUser(
   const body: Record<string, unknown> = {
     username: payload.username,
     password: payload.password,
-    display_name: payload.display_name,
+    role_slug: payload.role_slug,
   };
 
   if (payload.email !== undefined) {
@@ -71,7 +72,7 @@ export async function createAdminUser(
 }
 
 export type UpdateAdminUserPayload = Partial<{
-  display_name: string;
+  role_slug: string;
   permissions: PermissionEntry[];
 }>;
 
@@ -85,6 +86,10 @@ export async function updateAdminUser(
   }
   if (payload.permissions !== undefined) {
     body.permissions = payload.permissions;
+  }
+
+  if (payload.role_slug !== undefined) {
+    body.role_slug = payload.role_slug;
   }
 
   return apiPatch<AdminUser>(buildAdminPath(`/users/${id}/`), body);
@@ -106,7 +111,7 @@ export interface CreateChildUserPayload {
   parent_id: number;
   username: string;
   password: string;
-  display_name: string;
+  role_slug: string;
   email?: string;
   permissions?: PermissionEntry[];
 }
@@ -118,7 +123,7 @@ export async function createChildUser(
     parent_id: payload.parent_id,
     username: payload.username,
     password: payload.password,
-    display_name: payload.display_name,
+    role_slug: payload.role_slug,
   };
 
   if (payload.email !== undefined) {
@@ -158,4 +163,8 @@ export async function deleteUserFromOrg(
 
 export async function getMyPermissions(): Promise<PermissionMatrix> {
   return apiGet<PermissionMatrix>(buildAuthPath("/me/permissions/"));
+}
+
+export async function getRoleCatalog(): Promise<RoleCatalogEntry[]> {
+  return apiGet<RoleCatalogEntry[]>(buildAdminPath("/roles/"));
 }

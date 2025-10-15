@@ -10,11 +10,41 @@ RESOURCE_CHOICES = [
 ]
 
 
+class RoleCatalog(models.Model):
+    slug = models.SlugField(max_length=64, unique=True)
+    label = models.CharField(max_length=150)
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="children",
+    )
+    is_unique = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["label"]
+        verbose_name = "Role"
+        verbose_name_plural = "Roles"
+
+    def __str__(self):
+        return self.label
+
+
 class UserProfile(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
         related_name="profile",
+    )
+    role = models.ForeignKey(
+        RoleCatalog,
+        on_delete=models.PROTECT,
+        related_name="profiles",
+        null=True,
+        blank=True,
     )
     display_name = models.CharField(max_length=150)
     reports_to = models.ForeignKey(
@@ -58,7 +88,8 @@ class UserProfile(models.Model):
         return super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.display_name} ({self.user.username})"
+        role_label = self.role.label if self.role else "بدون نقش"
+        return f"{self.display_name} ({self.user.username}) - {role_label}"
 
 
 class PermissionEntry(models.Model):
