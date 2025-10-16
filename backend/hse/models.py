@@ -3,11 +3,32 @@ from django.db import models
 from common.models import CodeNamedModel, NamedModel, TimeStampedModel
 
 
+class ProjectStatus(models.TextChoices):
+    ACTIVE = "ACTIVE", "Active"
+    ARCHIVED = "ARCHIVED", "Archived"
+
+
 class Project(CodeNamedModel):
+    status = models.CharField(
+        max_length=20, 
+        choices=ProjectStatus.choices, 
+        default=ProjectStatus.ACTIVE
+    )
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    description = models.TextField(max_length=500, blank=True)
+    
+    # Keep is_active for backward compatibility
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(end_date__isnull=True) | models.Q(start_date__isnull=True) | models.Q(end_date__gte=models.F('start_date')),
+                name='project_end_date_after_start_date'
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.code} - {self.name}"

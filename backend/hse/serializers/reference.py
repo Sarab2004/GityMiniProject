@@ -1,13 +1,54 @@
 from rest_framework import serializers
 
-from ..models import Contractor, OrgUnit, Person, Project, Section
+from ..models import Contractor, OrgUnit, Person, Project, ProjectStatus, Section
 
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = ["id", "code", "name", "is_active", "created_at", "updated_at"]
+        fields = [
+            "id", 
+            "code", 
+            "name", 
+            "status", 
+            "start_date", 
+            "end_date", 
+            "description",
+            "is_active", 
+            "created_at", 
+            "updated_at"
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_code(self, value):
+        """Validate code uniqueness and length"""
+        if len(value) > 20:
+            raise serializers.ValidationError("کد پروژه نمی‌تواند بیش از 20 کاراکتر باشد.")
+        return value
+
+    def validate_name(self, value):
+        """Validate name length"""
+        if len(value) > 120:
+            raise serializers.ValidationError("نام پروژه نمی‌تواند بیش از 120 کاراکتر باشد.")
+        return value
+
+    def validate_description(self, value):
+        """Validate description length"""
+        if value and len(value) > 500:
+            raise serializers.ValidationError("توضیحات نمی‌تواند بیش از 500 کاراکتر باشد.")
+        return value
+
+    def validate(self, data):
+        """Validate date order"""
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        if start_date and end_date and end_date < start_date:
+            raise serializers.ValidationError({
+                'end_date': 'تاریخ پایان باید بعد از تاریخ شروع باشد.'
+            })
+        
+        return data
 
 
 class ContractorSerializer(serializers.ModelSerializer):
