@@ -7,6 +7,7 @@ import { PropsWithChildren, useMemo } from "react";
 
 import NoAccess from "@/components/ui/NoAccess";
 import { useMeProfile } from "@/hooks/useAuth";
+import { AdminBackBar } from "./components/AdminBackBar";
 
 const tabs = [
   { href: "/admin/users", label: "Users" },
@@ -56,30 +57,33 @@ export default function AdminLayout({ children }: PropsWithChildren) {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6">
-          <h1 className="text-2xl font-semibold text-slate-900">پنل ادمین</h1>
-          <nav aria-label="مدیریت">
-            <ul className="flex gap-3">
-              {tabs.map((tab) => {
-                const isActive = activeHref === tab.href;
-                return (
-                  <li key={tab.href}>
-                    <Link
-                      href={tab.href}
-                      className={[
-                        "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-slate-900 text-white shadow"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900",
-                      ].join(" ")}
-                    >
-                      {tab.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+        <div className="mx-auto max-w-6xl px-6">
+          <AdminBackBar />
+          <div className="flex flex-col gap-4 py-6">
+            <h1 className="text-2xl font-semibold text-slate-900">پنل ادمین</h1>
+            <nav aria-label="مدیریت">
+              <ul className="flex gap-3">
+                {tabs.map((tab) => {
+                  const isActive = activeHref === tab.href;
+                  return (
+                    <li key={tab.href}>
+                      <Link
+                        href={tab.href}
+                        className={[
+                          "rounded-md px-4 py-2 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-slate-900 text-white shadow"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900",
+                        ].join(" ")}
+                      >
+                        {tab.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
