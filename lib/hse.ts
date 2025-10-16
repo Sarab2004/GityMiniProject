@@ -28,7 +28,7 @@ export type UpdateProjectPayload = Partial<CreateProjectPayload>
 
 export type Contractor = { id: number; name: string }
 export type OrgUnit = { id: number; name: string }
-export type Section = { id: number; name: string; org_unit: number }
+export type Section = { id: number; name: string; org_unit: number; created_at?: string }
 
 export async function fetchProjects(): Promise<Project[]> {
     const { data } = await apiFetch<Project[]>('/v1/projects/', { method: 'GET' })

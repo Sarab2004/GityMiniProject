@@ -38,9 +38,9 @@ export default function AdminSectionsPage() {
         return sections.filter(
             (section) => 
                 section.name.toLowerCase().includes(search) ||
-                (section.org_unit_name && section.org_unit_name.toLowerCase().includes(search))
+                (orgUnits.find(u => u.id === section.org_unit)?.name.toLowerCase().includes(search))
         );
-    }, [sections, debouncedSearch]);
+    }, [sections, debouncedSearch, orgUnits]);
 
     const formatError = (err: unknown, fallback: string) => {
         if (err instanceof Error) {
@@ -291,7 +291,7 @@ export default function AdminSectionsPage() {
                                             {section.name}
                                         </td>
                                         <td className="px-4 py-3 text-sm text-slate-600">
-                                            {section.org_unit_name || '-'}
+                                            {orgUnits.find(u => u.id === section.org_unit)?.name || '-'}
                                         </td>
                                         <td className="px-4 py-3 text-sm text-slate-600">
                                             {section.created_at ? new Date(section.created_at).toLocaleDateString('fa-IR') : '-'}
