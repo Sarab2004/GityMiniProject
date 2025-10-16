@@ -48,6 +48,22 @@ const DEADLINE_PREFIX = "مهلت: ";
 const STATUS_PREFIX = "وضعیت: ";
 const NOTE_SEPARATOR = " | ";
 
+const ACTION_MAX_LENGTH = 120;
+const RESPONSIBLE_MAX_LENGTH = 60;
+const STATUS_MAX_LENGTH = 60;
+const NOTE_MAX_LENGTH = 200;
+
+const sanitizeLimited = (value: string | null | undefined, max: number): string => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  return trimmed.length > max ? trimmed.slice(0, max) : trimmed;
+};
+
+const sanitizeOptional = (value: string | null | undefined, max: number): string | null => {
+  const sanitized = sanitizeLimited(value, max);
+  return sanitized.length > 0 ? sanitized : null;
+};
+
 export const parseFR0103RequiredActions = (value?: string | null): FR0103ActionRow[] => {
   if (!value) {
     return [];
@@ -77,17 +93,22 @@ export const parseFR0103RequiredActions = (value?: string | null): FR0103ActionR
           row.action = part;
         }
       }
-      return row;
+      return {
+        action: sanitizeLimited(row.action, ACTION_MAX_LENGTH),
+        responsible: sanitizeLimited(row.responsible, RESPONSIBLE_MAX_LENGTH),
+        deadline: row.deadline?.trim() ?? "",
+        status: sanitizeLimited(row.status, STATUS_MAX_LENGTH),
+      };
     });
 };
 
 export const serializeFR0103RequiredActions = (items: FR0103ActionRow[]): string | null => {
   const lines = items
     .map((item) => ({
-      action: item.action?.trim() ?? "",
-      responsible: item.responsible?.trim() ?? "",
+      action: sanitizeLimited(item.action, ACTION_MAX_LENGTH),
+      responsible: sanitizeLimited(item.responsible, RESPONSIBLE_MAX_LENGTH),
       deadline: item.deadline?.trim() ?? "",
-      status: item.status?.trim() ?? "",
+      status: sanitizeLimited(item.status, STATUS_MAX_LENGTH),
     }))
     .filter((item) => item.action.length > 0)
     .map((item) => {
@@ -112,25 +133,25 @@ export const fr0103Adapter: FormEntryAdapter<FR0103ServerEntry, FR0103State> = {
     const data = entry.data ?? ({} as FR0103ServerEntry);
     return {
       actionId: data.action ? String(data.action) : FR0103_INITIAL_STATE.actionId,
-      changeSubject: data.subject_text ?? FR0103_INITIAL_STATE.changeSubject,
+      changeSubject: sanitizeLimited(data.subject_text, NOTE_MAX_LENGTH),
       registrationDate: data.date_registered ?? FR0103_INITIAL_STATE.registrationDate,
       implementationDate: data.date_applied ?? FR0103_INITIAL_STATE.implementationDate,
-      changeResponsible: data.owner_text ?? FR0103_INITIAL_STATE.changeResponsible,
+      changeResponsible: sanitizeLimited(data.owner_text, RESPONSIBLE_MAX_LENGTH),
       requiredActions: parseFR0103RequiredActions(data.required_actions_text),
-      fr0101Number: data.related_action_no_text ?? FR0103_INITIAL_STATE.fr0101Number,
-      description: data.notes_text ?? FR0103_INITIAL_STATE.description,
+      fr0101Number: sanitizeLimited(data.related_action_no_text, NOTE_MAX_LENGTH),
+      description: sanitizeLimited(data.notes_text, NOTE_MAX_LENGTH),
     };
   },
   toPayload(state: FR0103State): Partial<FR0103ServerEntry> {
     return {
       action: state.actionId ? Number(state.actionId) : undefined,
-      subject_text: state.changeSubject || null,
+      subject_text: sanitizeOptional(state.changeSubject, NOTE_MAX_LENGTH),
       date_registered: state.registrationDate || null,
       date_applied: state.implementationDate || null,
-      owner_text: state.changeResponsible || null,
+      owner_text: sanitizeOptional(state.changeResponsible, RESPONSIBLE_MAX_LENGTH),
       required_actions_text: serializeFR0103RequiredActions(state.requiredActions),
-      related_action_no_text: state.fr0101Number || null,
-      notes_text: state.description || null,
+      related_action_no_text: sanitizeOptional(state.fr0101Number, NOTE_MAX_LENGTH),
+      notes_text: sanitizeOptional(state.description, NOTE_MAX_LENGTH),
     };
   },
 };
