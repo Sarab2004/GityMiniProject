@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api/_client";
 import type { ArchiveFilters, ArchiveListItem } from "@/types/archive";
 import type { FormEntryResponse } from "@/lib/formEntry";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useProjects } from "@/hooks/useProjects";
 import NoAccess from "@/components/ui/NoAccess";
 
 const FORM_ROUTE_BY_TYPE: Record<string, string> = {
@@ -28,10 +29,6 @@ const FORM_ROUTE_BY_TYPE: Record<string, string> = {
   risk: "fr-01-28",
 };
 
-const PROJECT_LABELS: Record<string, string> = {
-  AS: "Acid Sarcheshmeh",
-  NP: "Negin Pars",
-};
 
 export default function ArchivePage() {
   const router = useRouter();
@@ -53,6 +50,8 @@ export default function ArchivePage() {
     error: permissionsError,
     can,
   } = usePermissions();
+
+  const { projects, loading: projectsLoading } = useProjects();
 
   const canViewArchive = can("archive", "read");
   const canEditArchive = can("archive", "update");
@@ -218,11 +217,12 @@ export default function ArchivePage() {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filters.project || ""}
                 onChange={(event) => handleFilterChange("project", event.target.value)}
+                disabled={projectsLoading}
               >
                 <option value="">همهٔ پروژه‌ها</option>
-                {Object.entries(PROJECT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id.toString()}>
+                    {project.code} - {project.name}
                   </option>
                 ))}
               </select>
@@ -272,7 +272,8 @@ export default function ArchivePage() {
                 </thead>
                 <tbody className="divide-y divide-divider">
                   {forms.map((item) => {
-                    const projectLabel = PROJECT_LABELS[item.project ?? ""] ?? item.project ?? "-";
+                    const project = projects.find(p => p.id.toString() === item.project);
+                    const projectLabel = project ? `${project.code} - ${project.name}` : item.project ?? "-";
                     return (
                       <tr key={item.id} className="transition-colors hover:bg-primarySubtle/40">
                         <td className="px-4 py-3 font-medium text-text">
