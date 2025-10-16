@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { fetchSections, fetchOrgUnits, onProjectsChanged } from '@/lib/hse'
 import type { Section, OrgUnit } from '@/lib/hse'
 
@@ -8,7 +8,7 @@ export function useSections() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             setLoading(true)
             setError(null)
@@ -24,7 +24,7 @@ export function useSections() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
 
     useEffect(() => {
         loadData()
@@ -35,7 +35,7 @@ export function useSections() {
         })
 
         return unsubscribe
-    }, [])
+    }, [loadData])
 
     return {
         sections,
