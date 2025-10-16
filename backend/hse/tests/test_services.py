@@ -5,7 +5,7 @@ from django.utils import timezone
 from ..models import AcceptanceStatus, LegalStatus, Project, RiskRecord, Section, OrgUnit, Contractor, ActionForm
 from ..services.indicator import next_indicator
 from ..services.risk import calculate_metrics
-from ..serializers.actions import ActionEffectivenessSerializer
+from ..serializers.actions import ActionEffectivenessSerializer, ActionFormSerializer
 from ..serializers.risks import RiskRecordSerializer
 
 
@@ -102,3 +102,33 @@ class ActionEffectivenessTests(TestCase):
         serializer.save()
         self.action.refresh_from_db()
         self.assertTrue(self.action.effective)
+
+
+class ActionFormSerializerTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create(username="creator")
+        self.project = Project.objects.create(code="NP", name="Central", created_by=self.user)
+
+    def test_accepts_affected_documents(self):
+        serializer = ActionFormSerializer(
+            data={
+                "project": self.project.pk,
+                "requester_name": "Tester",
+                "requester_unit_text": "Unit",
+                "request_date": timezone.now().date().isoformat(),
+                "request_type": "CORRECTIVE",
+                "sources": ["AUDIT"],
+                "nonconformity_or_change_desc": "Issue",
+                "root_cause_or_goal_desc": "Cause",
+                "affected_documents": ["دستورالعمل نصب", "روش اجرایی جوشکاری"],
+                "needs_risk_update": False,
+                "creates_knowledge": False,
+            }
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        instance = serializer.save(created_by=self.user)
+        self.assertEqual(
+            instance.affected_documents,
+            ["دستورالعمل نصب", "روش اجرایی جوشکاری"],
+        )

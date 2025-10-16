@@ -98,6 +98,7 @@ export type CreateActionPayload = {
     sources: string[]
     nonconformity_or_change_desc: string
     root_cause_or_goal_desc: string
+    affected_documents?: string[] | null
     needs_risk_update: boolean
     risk_update_date?: string | null
     creates_knowledge: boolean

@@ -171,6 +171,7 @@ class ActionForm(TimeStampedModel):
     sources = models.JSONField(default=list, blank=True)
     nonconformity_or_change_desc = models.TextField()
     root_cause_or_goal_desc = models.TextField()
+    affected_documents = models.JSONField(default=list, blank=True)
     needs_risk_update = models.BooleanField(default=False)
     risk_update_date = models.DateField(null=True, blank=True)
     creates_knowledge = models.BooleanField(default=False)

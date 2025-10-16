@@ -12,6 +12,7 @@ interface FormLayoutProps {
     error?: string | null
     success?: string | null
     footer?: React.ReactNode
+    mobileFriendly?: boolean
 }
 
 export const FormLayout: React.FC<FormLayoutProps> = ({
@@ -24,58 +25,105 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
     error,
     success,
     footer,
+    mobileFriendly = false,
 }) => {
     const handlePrint = () => {
         window.print()
     }
 
+    const renderDesktopHeader = () => (
+        <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4 space-x-reverse min-w-0">
+                <Link
+                    href="/"
+                    className="flex items-center space-x-2 space-x-reverse text-text2 hover:text-text transition-colors"
+                >
+                    <ArrowRightIcon className="h-5 w-5" />
+                    <span>بازگشت</span>
+                </Link>
+                <div className="h-6 w-px bg-border" />
+                <div className="min-w-0">
+                    <h1 className="text-lg font-semibold text-text truncate whitespace-nowrap">{title}</h1>
+                    {code && (
+                        <p className="text-sm text-muted font-mono truncate whitespace-nowrap">{code}</p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex items-center space-x-3 space-x-reverse">
+                {onReset && (
+                    <button
+                        onClick={onReset}
+                        className="btn-secondary flex items-center space-x-2 space-x-reverse"
+                        type="button"
+                    >
+                        <TrashIcon className="h-4 w-4" />
+                        <span>پاک‌کردن فرم</span>
+                    </button>
+                )}
+                <button
+                    onClick={handlePrint}
+                    className="btn-primary flex items-center space-x-2 space-x-reverse"
+                    type="button"
+                >
+                    <PrinterIcon className="h-4 w-4" />
+                    <span>پرینت</span>
+                </button>
+            </div>
+        </div>
+    )
+
+    const renderMobileHeader = () => (
+        <div className="flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between md:py-0 md:h-16">
+            <div className="flex items-start gap-3 md:items-center md:gap-4 min-w-0">
+                <Link
+                    href="/"
+                    className="flex items-center gap-2 text-text2 hover:text-text transition-colors"
+                >
+                    <ArrowRightIcon className="h-5 w-5" />
+                    <span className="text-sm whitespace-nowrap">بازگشت</span>
+                </Link>
+                <div className="h-6 w-px bg-border hidden md:block" />
+                <div className="min-w-0 space-y-1">
+                    <h1 className="text-lg font-semibold text-text truncate whitespace-nowrap">{title}</h1>
+                    {code && (
+                        <p className="text-sm text-muted font-mono truncate whitespace-nowrap">{code}</p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center md:gap-3">
+                {onReset && (
+                    <button
+                        onClick={onReset}
+                        className="btn-secondary flex items-center justify-center gap-2 w-full md:w-auto"
+                        type="button"
+                    >
+                        <TrashIcon className="h-4 w-4" />
+                        <span>پاک‌کردن فرم</span>
+                    </button>
+                )}
+                <button
+                    onClick={handlePrint}
+                    className="btn-primary flex items-center justify-center gap-2 w-full md:w-auto"
+                    type="button"
+                >
+                    <PrinterIcon className="h-4 w-4" />
+                    <span>پرینت</span>
+                </button>
+            </div>
+        </div>
+    )
+
     return (
         <div className="min-h-screen bg-bg">
             <header className="sticky top-0 z-10 bg-surface border-b border-border shadow-sm no-print">
                 <div className="container mx-auto px-4">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="flex items-center space-x-4 space-x-reverse">
-                            <Link
-                                href="/"
-                                className="flex items-center space-x-2 space-x-reverse text-text2 hover:text-text transition-colors"
-                            >
-                                <ArrowRightIcon className="h-5 w-5" />
-                                <span>بازگشت</span>
-                            </Link>
-                            <div className="h-6 w-px bg-border" />
-                            <div>
-                                <h1 className="text-lg font-semibold text-text">{title}</h1>
-                                {code && (
-                                    <p className="text-sm text-muted font-mono">{code}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center space-x-3 space-x-reverse">
-                            {onReset && (
-                                <button
-                                    onClick={onReset}
-                                    className="btn-secondary flex items-center space-x-2 space-x-reverse"
-                                    type="button"
-                                >
-                                    <TrashIcon className="h-4 w-4" />
-                                    <span>پاک‌کردن فرم</span>
-                                </button>
-                            )}
-                            <button
-                                onClick={handlePrint}
-                                className="btn-primary flex items-center space-x-2 space-x-reverse"
-                                type="button"
-                            >
-                                <PrinterIcon className="h-4 w-4" />
-                                <span>پرینت</span>
-                            </button>
-                        </div>
-                    </div>
+                    {mobileFriendly ? renderMobileHeader() : renderDesktopHeader()}
                 </div>
             </header>
 
-            <main className="container mx-auto px-4 py-8">
+            <main className="container mx-auto px-4 sm:px-6 py-8">
                 <div className="max-w-4xl mx-auto space-y-6">
                     {children}
                 </div>

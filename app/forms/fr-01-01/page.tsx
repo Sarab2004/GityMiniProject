@@ -12,6 +12,7 @@ import { CheckboxGroup } from '@/components/ui/CheckboxGroup'
 import { Textarea } from '@/components/ui/Textarea'
 import { RowRepeater } from '@/components/ui/RowRepeater'
 import { Select } from '@/components/ui/Select'
+import { MultiTagInput } from '@/components/ui/MultiTagInput'
 import {
     createActionForm,
     createActionItem,
@@ -65,6 +66,20 @@ const effectiveOptions = [
     { value: 'effective', label: 'اثربخش هستند' },
     { value: 'not_effective', label: 'اثربخش نیستند' },
 ]
+
+const affectedDocumentsSuggestions = [
+    { value: 'installation_instruction', label: 'دستورالعمل نصب' },
+    { value: 'welding_procedure', label: 'روش اجرایی جوشکاری' },
+    { value: 'maintenance_manual', label: 'دستورالعمل نگهداری' },
+    // TODO: Replace with داده مرجع از API اسناد در صورت فراهم شدن.
+]
+
+const sanitizeAffectedDocuments = (documents: string[]) =>
+    documents
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+        .map((item) => (item.length > 60 ? item.slice(0, 60) : item))
+        .slice(0, 12)
 
 const requestTypeMap: Record<string, 'CORRECTIVE' | 'PREVENTIVE' | 'CHANGE' | 'SUGGESTION'> = {
     corrective: 'CORRECTIVE',
@@ -250,6 +265,7 @@ export default function FR0101Page() {
                 sources: formData.actionSource.map((item) => sourceMap[item] ?? 'OTHER'),
                 nonconformity_or_change_desc: formData.nonConformityDescription,
                 root_cause_or_goal_desc: formData.rootCauseObjective,
+                affected_documents: sanitizeAffectedDocuments(formData.affectedDocuments),
                 needs_risk_update: boolFromYesNo(formData.riskAssessmentUpdate),
                 risk_update_date: formData.riskAssessmentDate || null,
                 creates_knowledge: boolFromYesNo(formData.newKnowledgeExperience),
@@ -366,11 +382,14 @@ export default function FR0101Page() {
     const resetDisabled = submitting || loadingOptions || (isEditMode && entryLoading)
 
 
+    const sectionClassName = 'p-4 sm:p-6'
+
     return (
         <FormLayout
             title="اقدام اصلاحی/پیشگیرانه/تغییرات"
             code="FR-01-01-00"
             onReset={resetForm}
+            mobileFriendly
             footer={
                 <div className="space-y-4">
                     {error ? (
@@ -392,10 +411,10 @@ export default function FR0101Page() {
                             {success}
                         </div>
                     ) : null}
-                    <div className="flex items-center justify-end gap-3">
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                         <button
                             type="button"
-                            className="btn-secondary"
+                            className="btn-secondary w-full sm:w-auto"
                             onClick={resetForm}
                             disabled={resetDisabled}
                         >
@@ -403,7 +422,7 @@ export default function FR0101Page() {
                         </button>
                         <button
                             type="button"
-                            className="btn-primary"
+                            className="btn-primary w-full sm:w-auto"
                             onClick={handleSubmit}
                             disabled={primaryDisabled}
                         >
@@ -413,29 +432,30 @@ export default function FR0101Page() {
                 </div>
             }
         >
-            {isEditMode ? (
-                <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                    <div className="flex flex-col gap-2">
-                        <span>در حال ویرایش رکورد #{entryId}</span>
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                            <Link href="/archive" className="text-amber-700 underline">
-                                بازگشت به آرشیو
-                            </Link>
-                            {!canEditArchiveEntries ? (
-                                <span className="text-amber-600">مجوز ویرایش برای شما فعال نیست.</span>
-                            ) : null}
+            <div className="space-y-4 sm:space-y-6">
+                {isEditMode ? (
+                    <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                        <div className="flex flex-col gap-2">
+                            <span>در حال ویرایش رکورد #{entryId}</span>
+                            <div className="flex flex-wrap items-center gap-3 text-xs">
+                                <Link href="/archive" className="text-amber-700 underline">
+                                    بازگشت به آرشیو
+                                </Link>
+                                {!canEditArchiveEntries ? (
+                                    <span className="text-amber-600">مجوز ویرایش برای شما فعال نیست.</span>
+                                ) : null}
+                            </div>
                         </div>
                     </div>
-                </div>
-            ) : null}
+                ) : null}
 
-            {isEditMode && entryLoading ? (
-                <div className="mb-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    در حال بارگذاری اطلاعات فرم...
-                </div>
-            ) : null}
+                {isEditMode && entryLoading ? (
+                    <div className="mb-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        در حال بارگذاری اطلاعات فرم...
+                    </div>
+                ) : null}
 
-            <FormSection title="اطلاعات کلی">
+                <FormSection title="اطلاعات کلی" className={sectionClassName}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
                         label="پروژه"
@@ -475,7 +495,7 @@ export default function FR0101Page() {
                 </div>
             </FormSection>
 
-            <FormSection title="نوع درخواست">
+            <FormSection title="نوع درخواست" className={sectionClassName}>
                 <RadioGroup
                     label="نوع درخواست"
                     options={requestTypeOptions}
@@ -485,7 +505,7 @@ export default function FR0101Page() {
                 />
             </FormSection>
 
-            <FormSection title="منشأ اقدام">
+            <FormSection title="منشأ اقدام" className={sectionClassName}>
                 <CheckboxGroup
                     label="منشأ اقدام"
                     options={actionSourceOptions}
@@ -495,7 +515,7 @@ export default function FR0101Page() {
                 />
             </FormSection>
 
-            <FormSection title="شرح عدم‌انطباق/درخواست تغییر">
+            <FormSection title="شرح عدم‌انطباق/درخواست تغییر" className={sectionClassName}>
                 <Textarea
                     label="شرح عدم‌انطباق/درخواست تغییر"
                     placeholder="چه مشکلی دیدید/چه تغییری می‌خواهید؟"
@@ -505,7 +525,7 @@ export default function FR0101Page() {
                 />
             </FormSection>
 
-            <FormSection title="ریشه/هدف">
+            <FormSection title="ریشه/هدف" className={sectionClassName}>
                 <Textarea
                     label="ریشه عدم‌انطباق یا هدف اقدام"
                     required
@@ -514,7 +534,7 @@ export default function FR0101Page() {
                 />
             </FormSection>
 
-            <FormSection title="به‌روزرسانی ارزیابی ریسک">
+            <FormSection title="به‌روزرسانی ارزیابی ریسک" className={sectionClassName}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <RadioGroup
                         label="نیاز به به‌روزرسانی ارزیابی ریسک دارد؟"
@@ -539,7 +559,7 @@ export default function FR0101Page() {
                 </div>
             </FormSection>
 
-            <FormSection title="اقدامات و منابع موردنیاز">
+            <FormSection title="اقدامات و منابع موردنیاز" className={sectionClassName}>
                 <RowRepeater
                     label="اقدامات و منابع موردنیاز"
                     columns={[
@@ -553,7 +573,20 @@ export default function FR0101Page() {
                 />
             </FormSection>
 
-            <FormSection title="تأییدات">
+            <FormSection title="اسناد و مدارک متاثر" className={sectionClassName}>
+                <MultiTagInput
+                    label="اسناد و مدارک متاثر"
+                    placeholder="مثلاً: دستورالعمل نصب، روش اجرایی جوشکاری"
+                    value={formData.affectedDocuments}
+                    onChange={(value) => updateField('affectedDocuments', value)}
+                    options={affectedDocumentsSuggestions}
+                    helper="در صورت نیاز، عنوان سند را وارد کنید یا از پیشنهادها انتخاب نمایید."
+                    maxItems={12}
+                    maxLength={60}
+                />
+            </FormSection>
+
+            <FormSection title="تأییدات" className={sectionClassName}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <TextInput
                         label="تأیید مسئول/مسئولین انجام"
@@ -568,7 +601,7 @@ export default function FR0101Page() {
                 </div>
             </FormSection>
 
-            <FormSection title="گزارش انجام اقدامات (مرتبه اول)">
+            <FormSection title="گزارش انجام اقدامات (مرتبه اول)" className={sectionClassName}>
                 <div className="space-y-4">
                     <RadioGroup
                         label="وضعیت اقدامات"
@@ -610,7 +643,7 @@ export default function FR0101Page() {
                 </div>
             </FormSection>
 
-            <FormSection title="گزارش انجام اقدامات (مرتبه دوم)">
+            <FormSection title="گزارش انجام اقدامات (مرتبه دوم)" className={sectionClassName}>
                 <div className="space-y-4">
                     <RadioGroup
                         label="وضعیت اقدامات"
@@ -652,7 +685,7 @@ export default function FR0101Page() {
                 </div>
             </FormSection>
 
-            <FormSection title="ارزیابی اثربخشی">
+            <FormSection title="ارزیابی اثربخشی" className={sectionClassName}>
                 <div className="space-y-4">
                     <RadioGroup
                         label="وضعیت اثربخشی"
@@ -691,7 +724,8 @@ export default function FR0101Page() {
                         />
                     </div>
                 </div>
-            </FormSection>
+                </FormSection>
+            </div>
         </FormLayout>
     )
 }

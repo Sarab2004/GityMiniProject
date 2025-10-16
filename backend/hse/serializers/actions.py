@@ -43,6 +43,7 @@ class ActionFormSerializer(serializers.ModelSerializer):
             "sources",
             "nonconformity_or_change_desc",
             "root_cause_or_goal_desc",
+            "affected_documents",
             "needs_risk_update",
             "risk_update_date",
             "creates_knowledge",

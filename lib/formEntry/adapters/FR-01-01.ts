@@ -20,6 +20,7 @@ export interface FR0101ServerEntry {
   sources: string[] | null;
   nonconformity_or_change_desc: string | null;
   root_cause_or_goal_desc: string | null;
+  affected_documents: string[] | null;
   needs_risk_update: boolean | null;
   risk_update_date: string | null;
   creates_knowledge: boolean | null;
@@ -61,7 +62,7 @@ export interface FR0101State {
   requiredActions: FR0101ActionRow[];
   responsibleApproval: string;
   managerApproval: string;
-  affectedDocuments: Record<string, unknown>[];
+  affectedDocuments: string[];
   firstReportStatus: string;
   firstReportDate: string;
   firstReportDescription: string;
@@ -114,6 +115,9 @@ export const FR0101_INITIAL_STATE: FR0101State = {
   effectivenessReviewer: "",
   effectivenessSignature: "",
 };
+
+const AFFECTED_DOCUMENTS_MAX_ITEMS = 12;
+const AFFECTED_DOCUMENTS_MAX_LENGTH = 60;
 
 const REQUEST_TYPE_TO_STATE: Record<string, string> = {
   CORRECTIVE: "corrective",
@@ -297,7 +301,13 @@ export const fr0101Adapter: FormEntryAdapter<FR0101ServerEntry, FR0101State> = {
       requiredActions: items,
       responsibleApproval: data.approved_by_performer_name ?? FR0101_INITIAL_STATE.responsibleApproval,
       managerApproval: data.approved_by_manager_name ?? FR0101_INITIAL_STATE.managerApproval,
-      affectedDocuments: FR0101_INITIAL_STATE.affectedDocuments,
+      affectedDocuments: Array.isArray(data.affected_documents)
+        ? data.affected_documents
+            .map((item) => (typeof item === "string" ? item.trim() : ""))
+            .filter((item) => item.length > 0)
+            .map((item) => (item.length > AFFECTED_DOCUMENTS_MAX_LENGTH ? item.slice(0, AFFECTED_DOCUMENTS_MAX_LENGTH) : item))
+            .slice(0, AFFECTED_DOCUMENTS_MAX_ITEMS)
+        : FR0101_INITIAL_STATE.affectedDocuments,
       firstReportStatus: mapExecutionStatus(data.exec1_approved),
       firstReportDate: data.exec1_new_date ?? FR0101_INITIAL_STATE.firstReportDate,
       firstReportDescription: execution1.description,
@@ -331,6 +341,15 @@ export const fr0101Adapter: FormEntryAdapter<FR0101ServerEntry, FR0101State> = {
         : [],
       nonconformity_or_change_desc: state.nonConformityDescription || null,
       root_cause_or_goal_desc: state.rootCauseObjective || null,
+      affected_documents: state.affectedDocuments
+        .filter((item) => item.trim().length > 0)
+        .map((item) => {
+          const trimmed = item.trim();
+          return trimmed.length > AFFECTED_DOCUMENTS_MAX_LENGTH
+            ? trimmed.slice(0, AFFECTED_DOCUMENTS_MAX_LENGTH)
+            : trimmed;
+        })
+        .slice(0, AFFECTED_DOCUMENTS_MAX_ITEMS),
       needs_risk_update: needsRiskUpdate ?? undefined,
       risk_update_date: state.riskAssessmentDate || null,
       creates_knowledge: createsKnowledge ?? undefined,
