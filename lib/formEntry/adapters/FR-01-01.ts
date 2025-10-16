@@ -116,8 +116,96 @@ export const FR0101_INITIAL_STATE: FR0101State = {
   effectivenessSignature: "",
 };
 
-const AFFECTED_DOCUMENTS_MAX_ITEMS = 12;
-const AFFECTED_DOCUMENTS_MAX_LENGTH = 60;
+export const AFFECTED_DOCUMENTS_MAX_ITEMS = 12;
+export const AFFECTED_DOCUMENTS_MAX_LENGTH = 60;
+
+export interface SanitizeAffectedDocumentsOptions {
+  maxItems?: number;
+  maxLength?: number;
+}
+
+export interface SanitizeAffectedDocumentsResult {
+  items: string[];
+  warnings: string[];
+}
+
+const extractDocumentLabel = (input: unknown): string | null => {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (typeof input === "number") {
+    return String(input);
+  }
+  if (input && typeof input === "object") {
+    const candidate = input as { label?: unknown; value?: unknown };
+    if (typeof candidate.label === "string") {
+      return candidate.label;
+    }
+    if (typeof candidate.value === "string") {
+      return candidate.value;
+    }
+  }
+  return null;
+};
+
+export const sanitizeAffectedDocuments = (
+  documents: unknown,
+  options: SanitizeAffectedDocumentsOptions = {}
+): SanitizeAffectedDocumentsResult => {
+  const { maxItems = AFFECTED_DOCUMENTS_MAX_ITEMS, maxLength = AFFECTED_DOCUMENTS_MAX_LENGTH } = options;
+
+  const sourceArray = Array.isArray(documents)
+    ? documents
+    : typeof documents === "string" || typeof documents === "number"
+    ? [documents]
+    : [];
+
+  const items: string[] = [];
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+
+  let hadDuplicates = false;
+  let hadOversized = false;
+  let hadOverflow = false;
+
+  for (const candidate of sourceArray) {
+    const raw = extractDocumentLabel(candidate);
+    if (!raw) {
+      continue;
+    }
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (trimmed.length > maxLength) {
+      hadOversized = true;
+      continue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (seen.has(normalized)) {
+      hadDuplicates = true;
+      continue;
+    }
+    if (items.length >= maxItems) {
+      hadOverflow = true;
+      continue;
+    }
+    seen.add(normalized);
+    items.push(trimmed);
+  }
+
+  if (hadOversized) {
+    warnings.push(`عنوان سند باید حداکثر ${maxLength} کاراکتر باشد؛ موارد بلندتر حذف شد.`);
+  }
+  if (hadDuplicates) {
+    warnings.push("عناوین سند تکراری حذف شد.");
+  }
+  if (hadOverflow) {
+    warnings.push(`حداکثر ${maxItems} سند قابل ثبت است؛ موارد اضافه حذف شد.`);
+  }
+
+  return { items, warnings };
+};
 
 const REQUEST_TYPE_TO_STATE: Record<string, string> = {
   CORRECTIVE: "corrective",
@@ -282,6 +370,7 @@ export const fr0101Adapter: FormEntryAdapter<FR0101ServerEntry, FR0101State> = {
           .map((source) => normalizeSource(source))
           .filter((source): source is string => Boolean(source))
       : FR0101_INITIAL_STATE.actionSource;
+    const sanitizedDocuments = sanitizeAffectedDocuments(data.affected_documents ?? []);
 
     return {
       projectId: data.project ? String(data.project) : FR0101_INITIAL_STATE.projectId,
@@ -301,13 +390,8 @@ export const fr0101Adapter: FormEntryAdapter<FR0101ServerEntry, FR0101State> = {
       requiredActions: items,
       responsibleApproval: data.approved_by_performer_name ?? FR0101_INITIAL_STATE.responsibleApproval,
       managerApproval: data.approved_by_manager_name ?? FR0101_INITIAL_STATE.managerApproval,
-      affectedDocuments: Array.isArray(data.affected_documents)
-        ? data.affected_documents
-            .map((item) => (typeof item === "string" ? item.trim() : ""))
-            .filter((item) => item.length > 0)
-            .map((item) => (item.length > AFFECTED_DOCUMENTS_MAX_LENGTH ? item.slice(0, AFFECTED_DOCUMENTS_MAX_LENGTH) : item))
-            .slice(0, AFFECTED_DOCUMENTS_MAX_ITEMS)
-        : FR0101_INITIAL_STATE.affectedDocuments,
+      affectedDocuments:
+        sanitizedDocuments.items.length > 0 ? sanitizedDocuments.items : FR0101_INITIAL_STATE.affectedDocuments,
       firstReportStatus: mapExecutionStatus(data.exec1_approved),
       firstReportDate: data.exec1_new_date ?? FR0101_INITIAL_STATE.firstReportDate,
       firstReportDescription: execution1.description,
@@ -329,6 +413,7 @@ export const fr0101Adapter: FormEntryAdapter<FR0101ServerEntry, FR0101State> = {
   toPayload(state: FR0101State): Partial<FR0101ServerEntry> {
     const needsRiskUpdate = mapYesNoToBoolean(state.riskAssessmentUpdate);
     const createsKnowledge = mapYesNoToBoolean(state.newKnowledgeExperience);
+    const sanitizedDocuments = sanitizeAffectedDocuments(state.affectedDocuments);
 
     return {
       project: state.projectId ? Number(state.projectId) : undefined,
@@ -341,15 +426,7 @@ export const fr0101Adapter: FormEntryAdapter<FR0101ServerEntry, FR0101State> = {
         : [],
       nonconformity_or_change_desc: state.nonConformityDescription || null,
       root_cause_or_goal_desc: state.rootCauseObjective || null,
-      affected_documents: state.affectedDocuments
-        .filter((item) => item.trim().length > 0)
-        .map((item) => {
-          const trimmed = item.trim();
-          return trimmed.length > AFFECTED_DOCUMENTS_MAX_LENGTH
-            ? trimmed.slice(0, AFFECTED_DOCUMENTS_MAX_LENGTH)
-            : trimmed;
-        })
-        .slice(0, AFFECTED_DOCUMENTS_MAX_ITEMS),
+      affected_documents: sanitizedDocuments.items,
       needs_risk_update: needsRiskUpdate ?? undefined,
       risk_update_date: state.riskAssessmentDate || null,
       creates_knowledge: createsKnowledge ?? undefined,

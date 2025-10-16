@@ -132,3 +132,26 @@ class ActionFormSerializerTests(TestCase):
             instance.affected_documents,
             ["دستورالعمل نصب", "روش اجرایی جوشکاری"],
         )
+
+    def test_serializer_returns_affected_documents(self):
+        action = ActionForm.objects.create(
+            indicator="NP-25-050",
+            project=self.project,
+            requester_name="Tester",
+            requester_unit_text="Unit",
+            request_date=timezone.now().date(),
+            request_type="CORRECTIVE",
+            sources=["AUDIT"],
+            nonconformity_or_change_desc="Issue",
+            root_cause_or_goal_desc="Cause",
+            affected_documents=["دستورالعمل نصب", "روش اجرایی جوشکاری"],
+            needs_risk_update=False,
+            creates_knowledge=False,
+            created_by=self.user,
+        )
+
+        serializer = ActionFormSerializer(instance=action)
+        self.assertEqual(
+            serializer.data["affected_documents"],
+            ["دستورالعمل نصب", "روش اجرایی جوشکاری"],
+        )
