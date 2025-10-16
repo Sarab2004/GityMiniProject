@@ -6,7 +6,25 @@ export type Project = {
     id: number
     code: string
     name: string
+    status?: 'ACTIVE' | 'ARCHIVED'
+    start_date?: string
+    end_date?: string
+    description?: string
+    is_active?: boolean
+    created_at?: string
+    updated_at?: string
 }
+
+export type CreateProjectPayload = {
+    code: string
+    name: string
+    status: 'ACTIVE' | 'ARCHIVED'
+    start_date?: string
+    end_date?: string
+    description?: string
+}
+
+export type UpdateProjectPayload = Partial<CreateProjectPayload>
 
 export type Contractor = { id: number; name: string }
 export type OrgUnit = { id: number; name: string }
@@ -16,6 +34,51 @@ export async function fetchProjects(): Promise<Project[]> {
     const { data } = await apiFetch<Project[]>('/v1/projects/', { method: 'GET' })
     return data ?? []
 }
+
+export async function createProject(payload: CreateProjectPayload): Promise<Project> {
+    const { data, response } = await apiFetch<Project>('/v1/projects/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok || !data) {
+        throw new Error((data as any)?.detail ?? 'ایجاد پروژه امکان‌پذیر نشد')
+    }
+    return data
+}
+
+export async function updateProject(id: number, payload: UpdateProjectPayload): Promise<Project> {
+    const { data, response } = await apiFetch<Project>(`/v1/projects/${id}/`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok || !data) {
+        throw new Error((data as any)?.detail ?? 'بروزرسانی پروژه امکان‌پذیر نشد')
+    }
+    return data
+}
+
+export async function deleteProject(id: number): Promise<void> {
+    const { response } = await apiFetch(`/v1/projects/${id}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok) {
+        throw new Error('حذف پروژه امکان‌پذیر نشد')
+    }
+}
+
+// Re-export projects bus functions
+export { emitProjectsChanged, onProjectsChanged } from './projectsBus'
 
 export async function fetchContractors(): Promise<Contractor[]> {
     const { data } = await apiFetch<Contractor[]>('/v1/contractors/', { method: 'GET' })
@@ -57,15 +120,42 @@ export async function createOrgUnit(name: string): Promise<OrgUnit> {
     return data
 }
 
+export async function updateOrgUnit(id: number, name: string): Promise<OrgUnit> {
+    const { data, response } = await apiFetch<OrgUnit>(`/v1/org-units/${id}/`, {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok || !data) {
+        throw new Error((data as any)?.detail ?? 'بروزرسانی واحد امکان‌پذیر نشد')
+    }
+    return data
+}
+
+export async function deleteOrgUnit(id: number): Promise<void> {
+    const { response } = await apiFetch(`/v1/org-units/${id}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok) {
+        throw new Error('حذف واحد امکان‌پذیر نشد')
+    }
+}
+
 export async function fetchSections(): Promise<Section[]> {
     const { data } = await apiFetch<Section[]>('/v1/sections/', { method: 'GET' })
     return data ?? []
 }
 
-export async function createSection(name: string, orgUnit: number): Promise<Section> {
+export async function createSection(name: string, orgUnitId: number): Promise<Section> {
     const { data, response } = await apiFetch<Section>('/v1/sections/', {
         method: 'POST',
-        body: JSON.stringify({ name, org_unit: orgUnit }),
+        body: JSON.stringify({ name, org_unit: orgUnitId }),
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCsrfToken(),
@@ -76,6 +166,34 @@ export async function createSection(name: string, orgUnit: number): Promise<Sect
     }
     return data
 }
+
+export async function updateSection(id: number, name: string, orgUnitId: number): Promise<Section> {
+    const { data, response } = await apiFetch<Section>(`/v1/sections/${id}/`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, org_unit: orgUnitId }),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok || !data) {
+        throw new Error((data as any)?.detail ?? 'بروزرسانی بخش امکان‌پذیر نشد')
+    }
+    return data
+}
+
+export async function deleteSection(id: number): Promise<void> {
+    const { response } = await apiFetch(`/v1/sections/${id}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+        },
+    })
+    if (!response.ok) {
+        throw new Error('حذف بخش امکان‌پذیر نشد')
+    }
+}
+
 
 export type ActionSummary = {
     id: number
@@ -438,10 +556,10 @@ export async function fetchArchiveForms(filters?: ArchiveFilters): Promise<Archi
         const params = new URLSearchParams()
         if (filters?.project) params.append('project', filters.project)
         if (filters?.form_type) params.append('form_type', filters.form_type)
-        
+
         const queryString = params.toString()
         const url = queryString ? `/v1/archive/?${queryString}` : '/v1/archive/'
-        
+
         const { data } = await apiFetch<ArchiveForm[]>(url, {
             method: 'GET',
             cache: 'no-store',

@@ -16,11 +16,10 @@ import { MultiTagInput } from '@/components/ui/MultiTagInput'
 import {
     createActionForm,
     createActionItem,
-    fetchProjects,
     submitEffectiveness,
     submitExecutionReport,
-    type Project,
 } from '@/lib/hse'
+import { useProjects } from '@/hooks/useProjects'
 import { ApiError } from '@/lib/api/_client'
 import { getEntry, updateEntry } from '@/lib/api/formEntry'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -112,8 +111,7 @@ export default function FR0101Page() {
     const canEditArchiveEntries = can('archive', 'update')
 
     const [formData, setFormData] = useState<FR0101State>(FR0101_INITIAL_STATE)
-    const [projects, setProjects] = useState<Project[]>([])
-    const [loadingOptions, setLoadingOptions] = useState(false)
+    const { projects, loading: loadingOptions } = useProjects()
     const [entryLoading, setEntryLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -122,21 +120,6 @@ export default function FR0101Page() {
     const [prefilledState, setPrefilledState] = useState<FR0101State | null>(null)
     const [affectedDocsWarning, setAffectedDocsWarning] = useState<string | null>(null)
 
-    useEffect(() => {
-        const loadProjects = async () => {
-            try {
-                setLoadingOptions(true)
-                const data = await fetchProjects()
-                setProjects(data)
-            } catch (err) {
-                console.error('load projects failed', err)
-                setError('?????? ????? ???????? ???? ???. ?????? ???? ????.')
-            } finally {
-                setLoadingOptions(false)
-            }
-        }
-        loadProjects()
-    }, [])
 
     useEffect(() => {
         if (!isEditMode || entryId === null) {
@@ -400,8 +383,8 @@ export default function FR0101Page() {
             ? 'در حال بروزرسانی...'
             : 'بروزرسانی'
         : submitting
-        ? 'در حال ثبت...'
-        : 'ثبت فرم'
+            ? 'در حال ثبت...'
+            : 'ثبت فرم'
 
     const primaryDisabled =
         submitting ||

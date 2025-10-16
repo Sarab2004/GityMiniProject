@@ -12,6 +12,9 @@ import { AdminBackBar } from "./components/AdminBackBar";
 const tabs = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/organization", label: "Organization" },
+  { href: "/admin/projects", label: "Projects" },
+  { href: "/admin/units", label: "Units" },
+  { href: "/admin/sections", label: "Sections" },
 ];
 
 export default function AdminLayout({ children }: PropsWithChildren) {
