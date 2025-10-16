@@ -18,12 +18,8 @@ export const AdminBackBar: React.FC<AdminBackBarProps> = ({
         if (href) {
             router.push(href)
         } else {
-            // Try to go back in history, fallback to /admin if no history
-            if (window.history.length > 1) {
-                router.back()
-            } else {
-                router.push('/admin')
-            }
+            // Always redirect to main dashboard (home page)
+            router.push('/')
         }
     }
 
