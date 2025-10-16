@@ -109,14 +109,14 @@ const getPermissionBadges = (simple: SimplePermissions): Array<{
   key: SimplePermissionKey;
   active: boolean;
 }> => [
-  { key: "can_submit_forms", active: simple.can_submit_forms },
-  { key: "can_view_archive", active: simple.can_view_archive },
-  { key: "can_edit_archive_entries", active: simple.can_edit_archive_entries },
-  {
-    key: "can_delete_archive_entries",
-    active: simple.can_delete_archive_entries,
-  },
-];
+    { key: "can_submit_forms", active: simple.can_submit_forms },
+    { key: "can_view_archive", active: simple.can_view_archive },
+    { key: "can_edit_archive_entries", active: simple.can_edit_archive_entries },
+    {
+      key: "can_delete_archive_entries",
+      active: simple.can_delete_archive_entries,
+    },
+  ];
 
 interface SimplePermissionCheckboxesProps {
   value: SimplePermissions;
@@ -393,6 +393,17 @@ export default function AdminUsersPage() {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  // قفل کردن اسکرول پس‌زمینه هنگام باز بودن مودال
+  useEffect(() => {
+    if (isCreateOpen || editUser) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isCreateOpen, editUser]);
 
   useEffect(() => {
     const fetchRoles = async () => {
@@ -683,30 +694,30 @@ export default function AdminUsersPage() {
         <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-          <tr>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-              نام کامل
-            </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-              نقش
-            </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-              نام کاربری
-            </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-              دسترسی‌ها
-            </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-              وضعیت
-            </th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
-              مدیر مستقیم
-            </th>
-            <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
-              عملیات
-            </th>
-          </tr>
-        </thead>
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  نام کامل
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  نقش
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  نام کاربری
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  دسترسی‌ها
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  وضعیت
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                  مدیر مستقیم
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
+                  عملیات
+                </th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {loading ? (
                 <tr>
@@ -811,8 +822,8 @@ export default function AdminUsersPage() {
       </div>
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
-          <div className="w-full max-w-[95vw] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl">
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-slate-900/40 p-4 md:p-6 overscroll-contain">
+          <div className="w-full max-w-[95vw] max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-3rem)] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
@@ -831,176 +842,178 @@ export default function AdminUsersPage() {
                 بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitCreate} className="px-4 py-4 sm:px-6 sm:py-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    نام کاربری *
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.username ?? ""}
-                    onChange={handleUsernameChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.password ?? ""}
-                    onChange={handlePasswordChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    نقش *
-                  </label>
-                  <select
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.role_slug}
-                    onChange={handleRoleChange}
-                    disabled={rolesLoading}
-                    required
-                  >
-                    <option value="">
-                      {rolesLoading ? "در حال بارگذاری نقش‌ها..." : "انتخاب نقش"}
-                    </option>
-                {roles.map((role) => {
-                  const disabled =
-                    role.is_unique && assignedUniqueRoles.has(role.slug);
-                  return (
-                    <option key={role.slug} value={role.slug} disabled={disabled}>
-                      {role.label}
-                      {role.is_unique ? " (یکتا)" : ""}
-                    </option>
-                  );
-                })}
-              </select>
-              {rolesError ? (
-                <p className="text-sm text-rose-600">{rolesError}</p>
-              ) : null}
-            </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createForm.email ?? ""}
-                    onChange={handleEmailChange}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    مدیر مستقیم
-                  </label>
-                  <select
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={createParentValue}
-                    onChange={handleReportsToChange}
-                    disabled={createParentDisabled}
-                  >
-                    <option value="">
-                      {rolesLoading
-                        ? "در حال بارگذاری مدیران..."
-                        : !selectedCreateRole
-                        ? "ابتدا نقش را انتخاب کنید"
-                        : requiresParentSelection
-                        ? "یک مدیر مجاز را انتخاب کنید"
-                        : "این نقش مدیر مستقیم نیاز ندارد"}
-                    </option>
-                    {createParentOptions.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.display_name} ({user.username})
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <form onSubmit={handleSubmitCreate} className="px-4 py-4 sm:px-6 sm:py-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      نام کاربری *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      value={createForm.username ?? ""}
+                      onChange={handleUsernameChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Password *
+                    </label>
+                    <input
+                      type="password"
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      value={createForm.password ?? ""}
+                      onChange={handlePasswordChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      نقش *
+                    </label>
+                    <select
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      value={createForm.role_slug}
+                      onChange={handleRoleChange}
+                      disabled={rolesLoading}
+                      required
+                    >
+                      <option value="">
+                        {rolesLoading ? "در حال بارگذاری نقش‌ها..." : "انتخاب نقش"}
                       </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-slate-500">
-                    نام نمایش به‌صورت خودکار توسط سرور ساخته می‌شود.
-                  </p>
-                  {requiresParentSelection ? (
-                    createParentOptions.length === 0 ? (
-                      <p className="text-xs text-amber-600">
-                        هیچ مدیری با نقش{" "}
-                        {requiredParentRole?.label ??
-                          selectedCreateRole?.parent_slug ??
-                          "-"}
-                        در دسترس نیست.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-slate-500">
-                        فقط کاربرانی با نقش{" "}
-                        {requiredParentRole?.label ??
-                          selectedCreateRole?.parent_slug ??
-                          "-"}
-                        نمایش داده می‌شوند.
-                      </p>
-                    )
-                  ) : selectedCreateRole ? (
+                      {roles.map((role) => {
+                        const disabled =
+                          role.is_unique && assignedUniqueRoles.has(role.slug);
+                        return (
+                          <option key={role.slug} value={role.slug} disabled={disabled}>
+                            {role.label}
+                            {role.is_unique ? " (یکتا)" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {rolesError ? (
+                      <p className="text-sm text-rose-600">{rolesError}</p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      value={createForm.email ?? ""}
+                      onChange={handleEmailChange}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      مدیر مستقیم
+                    </label>
+                    <select
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      value={createParentValue}
+                      onChange={handleReportsToChange}
+                      disabled={createParentDisabled}
+                    >
+                      <option value="">
+                        {rolesLoading
+                          ? "در حال بارگذاری مدیران..."
+                          : !selectedCreateRole
+                            ? "ابتدا نقش را انتخاب کنید"
+                            : requiresParentSelection
+                              ? "یک مدیر مجاز را انتخاب کنید"
+                              : "این نقش مدیر مستقیم نیاز ندارد"}
+                      </option>
+                      {createParentOptions.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.display_name} ({user.username})
+                        </option>
+                      ))}
+                    </select>
                     <p className="text-xs text-slate-500">
-                      این نقش نیازی به انتخاب مدیر ندارد.
+                      نام نمایش به‌صورت خودکار توسط سرور ساخته می‌شود.
                     </p>
+                    {requiresParentSelection ? (
+                      createParentOptions.length === 0 ? (
+                        <p className="text-xs text-amber-600">
+                          هیچ مدیری با نقش{" "}
+                          {requiredParentRole?.label ??
+                            selectedCreateRole?.parent_slug ??
+                            "-"}
+                          در دسترس نیست.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          فقط کاربرانی با نقش{" "}
+                          {requiredParentRole?.label ??
+                            selectedCreateRole?.parent_slug ??
+                            "-"}
+                          نمایش داده می‌شوند.
+                        </p>
+                      )
+                    ) : selectedCreateRole ? (
+                      <p className="text-xs text-slate-500">
+                        این نقش نیازی به انتخاب مدیر ندارد.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-sm font-semibold text-slate-800">
+                      دسترسی‌ها
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      چهار گزینهٔ زیر به‌صورت مستقیم به پرمیژن‌های جدید متصل هستند.
+                    </p>
+                  </div>
+                  <SimplePermissionCheckboxes
+                    value={createSimplePermissions}
+                    onChange={handleCreateSimplePermissionsChange}
+                    disabled={createLoading}
+                  />
+                  {createSimplePermissionsError ? (
+                    <p className="text-sm text-rose-600">{createSimplePermissionsError}</p>
                   ) : null}
                 </div>
-              </div>
 
-              <div className="mt-6 space-y-4">
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-sm font-semibold text-slate-800">
-                    دسترسی‌ها
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    چهار گزینهٔ زیر به‌صورت مستقیم به پرمیژن‌های جدید متصل هستند.
-                  </p>
-                </div>
-                <SimplePermissionCheckboxes
-                  value={createSimplePermissions}
-                  onChange={handleCreateSimplePermissionsChange}
-                  disabled={createLoading}
-                />
-                {createSimplePermissionsError ? (
-                  <p className="text-sm text-rose-600">{createSimplePermissionsError}</p>
+                {createError ? (
+                  <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {createError}
+                  </div>
                 ) : null}
-              </div>
 
-              {createError ? (
-                <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {createError}
+                <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateOpen(false)}
+                    className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    disabled={createLoading}
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="submit"
+                    className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    disabled={createDisabled}
+                  >
+                    {createLoading ? "در حال ذخیره..." : "افزودن کاربر"}
+                  </button>
                 </div>
-              ) : null}
-
-              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  disabled={createLoading}
-                >
-                  انصراف
-                </button>
-                <button
-                  type="submit"
-                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  disabled={createDisabled}
-                >
-                  {createLoading ? "در حال ذخیره..." : "افزودن کاربر"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       ) : null}
 
       {editUser ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
-          <div className="w-full max-w-[95vw] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl">
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-slate-900/40 p-4 md:p-6 overscroll-contain">
+          <div className="w-full max-w-[95vw] max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-3rem)] rounded-lg bg-white shadow-xl ring-1 ring-slate-900/10 sm:max-w-3xl flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
@@ -1022,90 +1035,92 @@ export default function AdminUsersPage() {
                 بستن
               </button>
             </div>
-            <form onSubmit={handleSubmitEdit} className="px-4 py-4 sm:px-6 sm:py-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    نقش
-                  </label>
-                  <select
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                    value={editRoleSlug}
-                    onChange={handleEditRoleChange}
-                    disabled={rolesLoading}
-                    required
-                  >
-                    <option value="">
-                      {rolesLoading ? "در حال بارگذاری نقش‌ها..." : "انتخاب نقش"}
-                    </option>
-                    {roles.map((role) => {
-                      const disabled =
-                        role.is_unique &&
-                        assignedUniqueRoles.has(role.slug) &&
-                        role.slug !== (editUser?.role?.slug ?? "");
-                      return (
-                        <option key={role.slug} value={role.slug} disabled={disabled}>
-                          {role.label}
-                          {role.is_unique ? " (یکتا)" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {rolesError ? (
-                    <p className="text-sm text-rose-600">{rolesError}</p>
-                  ) : null}
-                </div>
-                <p className="text-xs text-slate-500">
-                  با ذخیره نقش جدید، نام نمایشی به‌صورت خودکار بر اساس ساختار سازمانی بازتولید می‌شود.
-                </p>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-sm font-semibold text-slate-800">
-                    دسترسی‌ها
-                  </h4>
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <form onSubmit={handleSubmitEdit} className="px-4 py-4 sm:px-6 sm:py-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      نقش
+                    </label>
+                    <select
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      value={editRoleSlug}
+                      onChange={handleEditRoleChange}
+                      disabled={rolesLoading}
+                      required
+                    >
+                      <option value="">
+                        {rolesLoading ? "در حال بارگذاری نقش‌ها..." : "انتخاب نقش"}
+                      </option>
+                      {roles.map((role) => {
+                        const disabled =
+                          role.is_unique &&
+                          assignedUniqueRoles.has(role.slug) &&
+                          role.slug !== (editUser?.role?.slug ?? "");
+                        return (
+                          <option key={role.slug} value={role.slug} disabled={disabled}>
+                            {role.label}
+                            {role.is_unique ? " (یکتا)" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {rolesError ? (
+                      <p className="text-sm text-rose-600">{rolesError}</p>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-slate-500">
-                    تغییر این گزینه‌ها هم‌زمان روی پرمیژن‌های ساده در بک‌اند اعمال می‌شود.
+                    با ذخیره نقش جدید، نام نمایشی به‌صورت خودکار بر اساس ساختار سازمانی بازتولید می‌شود.
                   </p>
                 </div>
-                <SimplePermissionCheckboxes
-                  value={editSimplePermissions}
-                  onChange={handleEditSimplePermissionsChange}
-                  disabled={editLoading}
-                />
-                {editSimplePermissionsError ? (
-                  <p className="text-sm text-rose-600">{editSimplePermissionsError}</p>
-                ) : null}
-              </div>
 
-              {editError ? (
-                <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {editError}
+                <div className="mt-6 space-y-4">
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-sm font-semibold text-slate-800">
+                      دسترسی‌ها
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      تغییر این گزینه‌ها هم‌زمان روی پرمیژن‌های ساده در بک‌اند اعمال می‌شود.
+                    </p>
+                  </div>
+                  <SimplePermissionCheckboxes
+                    value={editSimplePermissions}
+                    onChange={handleEditSimplePermissionsChange}
+                    disabled={editLoading}
+                  />
+                  {editSimplePermissionsError ? (
+                    <p className="text-sm text-rose-600">{editSimplePermissionsError}</p>
+                  ) : null}
                 </div>
-              ) : null}
 
-              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditUser(null);
-                    setEditRoleSlug("");
-                  }}
-                  className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  disabled={editLoading}
-                >
-                  انصراف
-                </button>
-                <button
-                  type="submit"
-                  className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  disabled={editDisabled}
-                >
-                  {editLoading ? "در حال ذخیره..." : "ذخیره تغییرات"}
-                </button>
-              </div>
-            </form>
+                {editError ? (
+                  <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {editError}
+                  </div>
+                ) : null}
+
+                <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditUser(null);
+                      setEditRoleSlug("");
+                    }}
+                    className="min-h-[44px] rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    disabled={editLoading}
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="submit"
+                    className="min-h-[44px] rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    disabled={editDisabled}
+                  >
+                    {editLoading ? "در حال ذخیره..." : "ذخیره تغییرات"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       ) : null}
