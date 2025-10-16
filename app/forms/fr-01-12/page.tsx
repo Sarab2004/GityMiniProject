@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -377,8 +377,8 @@ export default function FR0112Page() {
             ? 'در حال بروزرسانی...'
             : 'بروزرسانی فرم'
         : submitting
-        ? 'در حال ثبت...'
-        : 'ثبت فرم'
+            ? 'در حال ثبت...'
+            : 'ثبت فرم'
 
     const primaryDisabled =
         submitting ||
@@ -390,7 +390,7 @@ export default function FR0112Page() {
 
     return (
         <FormLayout
-            title="ØªØ´Ú©ÛŒÙ„ ØªÛŒÙ… Ù‡Ù…ÛŒØ§Ø±Ø§Ù† HSE"
+            title="تشکیل تیم همیاران HSE"
             code="FR-01-12-00"
             onReset={resetForm}
             mobileFriendly
@@ -422,7 +422,7 @@ export default function FR0112Page() {
                             onClick={resetForm}
                             disabled={resetDisabled}
                         >
-                            Ù¾Ø§Ú©â€ŒÚ©Ø±Ø¯Ù† ÙØ±Ù…
+                            پاک کردن فرم
                         </button>
                         <button
                             type="button"
@@ -596,4 +596,11 @@ export default function FR0112Page() {
         </FormLayout>
     )
 }
+
+
+
+
+
+
+
 
