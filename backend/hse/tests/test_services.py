@@ -2,11 +2,22 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from ..models import AcceptanceStatus, LegalStatus, Project, RiskRecord, Section, OrgUnit, Contractor, ActionForm
+from ..models import (
+    AcceptanceStatus,
+    LegalStatus,
+    Project,
+    RiskRecord,
+    Section,
+    OrgUnit,
+    Contractor,
+    ActionForm,
+    ToolboxMeeting,
+)
 from ..services.indicator import next_indicator
 from ..services.risk import calculate_metrics
 from ..serializers.actions import ActionEffectivenessSerializer, ActionFormSerializer
 from ..serializers.risks import RiskRecordSerializer
+from ..serializers.tracking import ToolboxMeetingSerializer
 
 
 class IndicatorServiceTests(TestCase):
@@ -155,3 +166,40 @@ class ActionFormSerializerTests(TestCase):
             serializer.data["affected_documents"],
             ["دستورالعمل نصب", "روش اجرایی جوشکاری"],
         )
+
+
+class ToolboxMeetingSerializerTests(TestCase):
+    def setUp(self):
+        self.project = Project.objects.create(code="NP", name="Central", created_by=None)
+
+    def test_accepts_location_and_notes(self):
+        serializer = ToolboxMeetingSerializer(
+            data={
+                "tbm_no": "TBM-1403-027",
+                "project": self.project.pk,
+                "date": timezone.now().date().isoformat(),
+                "topic_text": "ایمنی کار در ارتفاع",
+                "trainer_text": "کارشناس ارشد HSE",
+                "location_text": "کارگاه A",
+                "notes_text": "یادداشت آزمایشی",
+            }
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        meeting = serializer.save()
+        self.assertEqual(meeting.location_text, "کارگاه A")
+        self.assertEqual(meeting.notes_text, "یادداشت آزمایشی")
+
+    def test_serializer_returns_location_and_notes(self):
+        meeting = ToolboxMeeting.objects.create(
+            tbm_no="TBM-1403-030",
+            project=self.project,
+            date=timezone.now().date(),
+            topic_text="بازآموزی دستورالعمل‌ها",
+            trainer_text="سرپرست ایمنی",
+            location_text="سالن مونتاژ",
+            notes_text="جلسه به صورت عملی برگزار شد.",
+        )
+
+        serializer = ToolboxMeetingSerializer(instance=meeting)
+        self.assertEqual(serializer.data["location_text"], "سالن مونتاژ")
+        self.assertEqual(serializer.data["notes_text"], "جلسه به صورت عملی برگزار شد.")

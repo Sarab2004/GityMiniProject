@@ -267,6 +267,7 @@ export type TeamMemberPayload = {
     unit?: number | null
     section?: number | null
     representative_name: string
+    contact_info?: string | null
     signature_text?: string
     tbm_no?: string
 }

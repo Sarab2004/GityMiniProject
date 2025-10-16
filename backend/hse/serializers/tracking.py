@@ -47,6 +47,9 @@ class ChangeLogSerializer(serializers.ModelSerializer):
 
 
 class ToolboxMeetingSerializer(serializers.ModelSerializer):
+    location_text = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    notes_text = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
     class Meta:
         model = ToolboxMeeting
         fields = [
@@ -56,6 +59,8 @@ class ToolboxMeetingSerializer(serializers.ModelSerializer):
             "date",
             "topic_text",
             "trainer_text",
+            "location_text",
+            "notes_text",
             "created_at",
             "updated_at",
         ]
@@ -63,6 +68,9 @@ class ToolboxMeetingSerializer(serializers.ModelSerializer):
 
 
 class TBMAttendeeSerializer(serializers.ModelSerializer):
+    role_text = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    signature_text = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
     class Meta:
         model = TBMAttendee
         fields = [

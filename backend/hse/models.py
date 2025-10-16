@@ -74,6 +74,7 @@ class TeamMember(TimeStampedModel):
     unit = models.ForeignKey(OrgUnit, on_delete=models.SET_NULL, null=True, blank=True)
     section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True)
     representative_name = models.CharField(max_length=255)
+    contact_info = models.CharField(max_length=80, blank=True, null=True)
     signature_text = models.CharField(max_length=255, blank=True)
     tbm_no = models.CharField(max_length=50, blank=True)
 
@@ -279,6 +280,8 @@ class ToolboxMeeting(TimeStampedModel):
     date = models.DateField()
     topic_text = models.CharField(max_length=255)
     trainer_text = models.CharField(max_length=255)
+    location_text = models.CharField(max_length=120, blank=True)
+    notes_text = models.CharField(max_length=1000, blank=True)
 
     class Meta:
         indexes = [models.Index(fields=["project", "is_deleted"])]
@@ -290,7 +293,7 @@ class ToolboxMeeting(TimeStampedModel):
 class TBMAttendee(TimeStampedModel):
     tbm = models.ForeignKey(ToolboxMeeting, on_delete=models.CASCADE, related_name="attendees")
     full_name = models.CharField(max_length=255)
-    role_text = models.CharField(max_length=255)
+    role_text = models.CharField(max_length=255, blank=True)
     signature_text = models.CharField(max_length=255, blank=True)
 
     class Meta:
