@@ -692,38 +692,47 @@ export default function AdminUsersPage() {
         ) : null}
 
         <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-full divide-y divide-slate-200">
+          <table className="min-w-full table-fixed border-separate border-spacing-0">
+            <colgroup>
+              <col style={{ width: '20%' }} /> {/* نام کامل */}
+              <col style={{ width: '14%' }} /> {/* نقش */}
+              <col style={{ width: '18%' }} /> {/* نام کاربری */}
+              <col style={{ width: '18%' }} /> {/* دسترسی‌ها */}
+              <col style={{ width: '10%' }} /> {/* وضعیت */}
+              <col style={{ width: '10%' }} /> {/* مدیر مستقیم */}
+              <col style={{ width: '10%' }} /> {/* عملیات */}
+            </colgroup>
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200">
                   نام کامل
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200">
                   نقش
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200">
                   نام کاربری
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200">
                   دسترسی‌ها
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200">
                   وضعیت
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200 hidden md:table-cell">
                   مدیر مستقیم
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
+                <th className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/60 px-4 py-3 text-right text-sm font-semibold text-slate-600 border-b border-slate-200">
                   عملیات
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
+            <tbody className="bg-white">
               {loading ? (
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-4 py-6 text-center text-sm text-slate-500"
+                    className="px-4 py-6 text-center text-sm text-slate-500 border-b border-slate-200"
                   >
                     در حال دریافت داده‌ها...
                   </td>
@@ -732,7 +741,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-4 py-6 text-center text-sm text-slate-500"
+                    className="px-4 py-6 text-center text-sm text-slate-500 border-b border-slate-200"
                   >
                     کاربری یافت نشد.
                   </td>
@@ -745,25 +754,25 @@ export default function AdminUsersPage() {
                   const simplePermissions = extractSimplePermissions(user);
                   const activePermissionBadges = getPermissionBadges(simplePermissions).filter((badge) => badge.active);
                   return (
-                    <tr key={user.id}>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                    <tr key={user.id} className="border-b border-slate-200">
+                      <td className="px-4 py-3 text-right text-sm font-medium text-slate-800">
                         {user.display_name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-right text-sm text-slate-600">
                         {user.role?.label ?? "-"}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-right text-sm text-slate-600">
                         {user.username}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-right text-sm text-slate-600">
                         {activePermissionBadges.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2 justify-end">
                             {activePermissionBadges.map((badge) => {
                               const meta = SIMPLE_PERMISSION_META[badge.key];
                               return (
                                 <span
                                   key={badge.key}
-                                  className="inline-flex min-h-[24px] items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
+                                  className="inline-flex min-h-[24px] items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 whitespace-nowrap"
                                   title={meta.description}
                                 >
                                   {meta.badge}
@@ -775,7 +784,7 @@ export default function AdminUsersPage() {
                           <span className="text-xs text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-4 py-3 text-right text-sm">
                         <span
                           className={[
                             "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
@@ -787,7 +796,7 @@ export default function AdminUsersPage() {
                           {user.is_active ? "فعال" : "غیرفعال"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-right text-sm text-slate-600 hidden md:table-cell">
                         {manager ? manager.display_name : "-"}
                       </td>
                       <td className="px-4 py-3 text-right text-sm">
