@@ -1,5 +1,4 @@
-
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -20,6 +19,7 @@ import {
 import { ApiError } from '@/lib/api/_client'
 import { getEntry, updateEntry } from '@/lib/api/formEntry'
 import { usePermissions } from '@/hooks/usePermissions'
+import { Button as StatefulButton } from '@/components/ui/stateful-button'
 import {
     FR0110_INITIAL_STATE,
     type FR0110State,
@@ -317,8 +317,8 @@ export default function FR0110Page() {
             ? 'در حال بروزرسانی...'
             : 'بروزرسانی'
         : submitting
-        ? 'در حال ثبت...'
-        : 'ثبت فرم'
+            ? 'در حال ثبت...'
+            : 'ثبت فرم'
 
     const primaryDisabled =
         submitting || projectsLoading || (isEditMode && (entryLoading || !canEditArchiveEntries))
@@ -365,14 +365,13 @@ export default function FR0110Page() {
                         >
                             بازنشانی فرم
                         </button>
-                        <button
-                            type="button"
-                            className="btn-primary w-full md:w-auto"
+                        <StatefulButton
                             onClick={handleSubmit}
+                            className="w-full sm:w-auto"
                             disabled={primaryDisabled}
                         >
                             {primaryButtonLabel}
-                        </button>
+                        </StatefulButton>
                     </div>
                 </div>
             }

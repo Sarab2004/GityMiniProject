@@ -23,6 +23,7 @@ import {
 } from "@/lib/formEntry/adapters/FR-01-02";
 import { getEntry, updateEntry } from "@/lib/api/formEntry";
 import { usePermissions } from "@/hooks/usePermissions";
+import { Button as StatefulButton } from "@/components/ui/stateful-button";
 import { ApiError } from "@/lib/api/_client";
 
 const actionSourceOptions = [
@@ -296,8 +297,8 @@ export default function FR0102Page() {
       ? "در حال بروزرسانی..."
       : "بروزرسانی"
     : submitting
-    ? "در حال ثبت..."
-    : "ثبت فرم";
+      ? "در حال ثبت..."
+      : "ثبت فرم";
 
   const primaryDisabled =
     submitting || actionsLoading || (isEditMode && (entryLoading || !canEditArchiveEntries));
@@ -345,14 +346,13 @@ export default function FR0102Page() {
             >
               بازنشانی فرم
             </button>
-            <button
-              type="button"
-              className="btn-primary w-full md:w-auto"
+            <StatefulButton
               onClick={handleSubmit}
+              className="w-full sm:w-auto"
               disabled={primaryDisabled}
             >
               {primaryButtonLabel}
-            </button>
+            </StatefulButton>
           </div>
         </div>
       }
