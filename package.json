@@ -13,12 +13,17 @@
     },
     "dependencies": {
         "@heroicons/react": "^2.0.18",
+        "@radix-ui/react-label": "^2.1.7",
+        "@tabler/icons-react": "^3.35.0",
+        "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "framer-motion": "^12.23.24",
         "jalaali-js": "^1.2.8",
         "motion": "^12.23.24",
         "next": "14.0.4",
         "react": "^18",
-        "react-dom": "^18"
+        "react-dom": "^18",
+        "tailwind-merge": "^3.3.1"
     },
     "devDependencies": {
         "@types/jalaali-js": "^1.2.0",
