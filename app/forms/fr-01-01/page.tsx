@@ -144,7 +144,7 @@ export default function FR0101Page() {
                 setFieldErrors([])
             } catch (err) {
                 console.error('load entry failed', err)
-                setError('?????? ????? ??? ???? ?????? ???? ???.')
+                setError('خطا در بارگذاری اطلاعات فرم. لطفاً دوباره تلاش کنید.')
                 setFieldErrors([])
             } finally {
                 setEntryLoading(false)
@@ -218,7 +218,7 @@ export default function FR0101Page() {
             return
         }
         if (stateForSubmit.actionSource.length === 0) {
-            setError('حداقل یک منبع اقدام را انتخاب کنید.')
+            setError('حداقل یک منشأ اقدام را انتخاب کنید.')
             return
         }
 
@@ -232,24 +232,24 @@ export default function FR0101Page() {
                 const payload = fr0101Adapter.toPayload(stateForSubmit)
                 await updateEntry<FR0101ServerEntry>('FR-01-01', entryId, payload)
                 setPrefilledState({ ...stateForSubmit })
-                setSuccess('بروزرسانی شد')
+                setSuccess('به‌روزرسانی شد')
                 setFieldErrors([])
             } catch (err) {
                 console.error('update action form error', err)
                 if (err instanceof ApiError) {
                     if (err.status === 403) {
-                        setError('اجازه بروزرسانی این رکورد را ندارید.')
+                        setError('اجازه به‌روزرسانی این رکورد را ندارید.')
                         setFieldErrors([])
                     } else if (err.status === 400 || err.status === 422) {
                         const messages = err.messages && err.messages.length > 0 ? err.messages : null
                         setError('لطفاً خطاهای زیر را بررسی کنید و سپس دوباره تلاش کنید.')
-                        setFieldErrors(messages ?? ['بروزرسانی فرم با خطا روبه‌رو شد.'])
+                        setFieldErrors(messages ?? ['به‌روزرسانی فرم با خطا روبه‌رو شد.'])
                     } else {
-                        setError('بروزرسانی فرم با خطای غیرمنتظره روبه‌رو شد.')
+                        setError('به‌روزرسانی فرم با خطای غیرمنتظره روبه‌رو شد.')
                         setFieldErrors([])
                     }
                 } else {
-                    setError('بروزرسانی فرم با خطای غیرمنتظره روبه‌رو شد.')
+                    setError('به‌روزرسانی فرم با خطای غیرمنتظره روبه‌رو شد.')
                     setFieldErrors([])
                 }
             } finally {
@@ -381,8 +381,8 @@ export default function FR0101Page() {
 
     const primaryButtonLabel = isEditMode
         ? submitting
-            ? 'در حال بروزرسانی...'
-            : 'بروزرسانی'
+            ? 'در حال به‌روزرسانی...'
+            : 'به‌روزرسانی'
         : submitting
             ? 'در حال ثبت...'
             : 'ثبت فرم'
@@ -594,9 +594,9 @@ export default function FR0101Page() {
                     />
                 </FormSection>
 
-                <FormSection title="اسناد و مدارک متاثر" className={sectionClassName}>
+                <FormSection title="اسناد و مدارک متأثر" className={sectionClassName}>
                     <MultiTagInput
-                        label="اسناد و مدارک متاثر"
+                        label="اسناد و مدارک متأثر"
                         placeholder="مثلاً: دستورالعمل نصب، روش اجرایی جوشکاری"
                         value={formData.affectedDocuments}
                         onChange={(value) => updateField('affectedDocuments', value)}
@@ -654,12 +654,12 @@ export default function FR0101Page() {
                                 onChange={(value) => updateField('firstReportResponsibleSignature', value)}
                             />
                             <TextInput
-                                label="نام تاییدکننده"
+                                label="نام تأییدکننده"
                                 value={formData.firstReportApproverSignature}
                                 onChange={(value) => updateField('firstReportApproverSignature', value)}
                             />
                             <DateInput
-                                label="تاریخ تایید"
+                                label="تاریخ تأیید"
                                 value={formData.firstReportDate}
                                 onChange={(value) => updateField('firstReportDate', value)}
                             />
@@ -696,12 +696,12 @@ export default function FR0101Page() {
                                 onChange={(value) => updateField('secondReportResponsibleSignature', value)}
                             />
                             <TextInput
-                                label="نام تاییدکننده"
+                                label="نام تأییدکننده"
                                 value={formData.secondReportApproverSignature}
                                 onChange={(value) => updateField('secondReportApproverSignature', value)}
                             />
                             <DateInput
-                                label="تاریخ تایید"
+                                label="تاریخ تأیید"
                                 value={formData.secondReportDate}
                                 onChange={(value) => updateField('secondReportDate', value)}
                             />

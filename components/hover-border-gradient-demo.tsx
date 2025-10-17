@@ -37,3 +37,4 @@ const AceternityLogo = () => {
         </svg>
     );
 };
+
